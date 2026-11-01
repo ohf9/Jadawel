@@ -3,7 +3,8 @@ const KEY = 'jadawel-settings';
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
 export const settings = Object.assign({ lang: 'ar', newRtl: true }, load());
 export function saveSettings(patch) { Object.assign(settings, patch); try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* التخزين غير متاح */ } }
-export const lang = settings.lang;
+export let lang = settings.lang;
+export function setLang(l) { lang = l; settings.lang = l; document.documentElement.lang = l; document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr'; }
 
 const EN = {
   'جداول': 'Jadawel', 'الملفات المفتوحة': 'Open files', 'الإعدادات': 'Settings',
@@ -18,7 +19,7 @@ const EN = {
   'اعرض الملف الحالي في لوحتين لتتحكم بورقتين منه معًا': 'Show the current file in both panes to work on two sheets at once', 'ورقتان معًا': 'Two sheets',
   'افتح نافذة مستقلة جديدة من التطبيق': 'Open a new independent app window', 'نافذة جديدة': 'New window', 'العرض': 'View',
   'الإعدادات ': 'Settings', 'لغة الواجهة': 'Interface language', 'اتجاه الأوراق الجديدة': 'Direction of new sheets', 'من اليمين إلى اليسار': 'Right to left', 'من اليسار إلى اليمين': 'Left to right',
-  'تغيير اللغة يعيد تحميل التطبيق، وتبقى ملفاتك وتعديلاتك كما هي.': 'Changing the language reloads the app. Your files and edits are kept.', 'إلغاء': 'Cancel',
+  'تتغير اللغة فورًا، وتبقى ملفاتك وتعديلاتك كما هي.': 'The language changes immediately. Your files and edits are kept.', 'إلغاء': 'Cancel',
   // الأعداد
   'عام': 'General', 'رقم': 'Number', 'رقم بخانتين': 'Number, 2 decimals', 'آلاف': 'Thousands', 'آلاف بخانتين': 'Thousands, 2 decimals', 'نسبة %': 'Percent', 'نسبة بخانتين': 'Percent, 2 decimals',
   'دولار': 'US dollar', 'ريال سعودي': 'Saudi riyal', 'تاريخ': 'Date', 'تاريخ يوم/شهر/سنة': 'Date (day/month/year)', 'وقت': 'Time', 'نص': 'Text', 'مخصص': 'Custom',
@@ -75,12 +76,28 @@ export function tr(s) {
   for (const [re, f] of PAT) { const m = re.exec(t); if (m) return s.replace(t, f(m)); }
   return s;
 }
-// ترجمة عناصر الصفحة الثابتة (النصوص والتلميحات)
+// ترجمة عناصر الصفحة الثابتة (النصوص والتلميحات). تحفظ النص العربي الأصلي ليمكن التبديل في أي وقت دون إعادة تحميل
+const ORIG = new WeakMap(); // عقدة نص -> الأصل العربي
+const ATTRS = ['title', 'aria-label', 'placeholder'];
 export function translateDom(root) {
-  if (lang === 'ar') return;
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
-  for (const n of nodes) { const t = n.nodeValue.trim(); if (t && (EN[t] !== undefined || PAT.some(([re]) => re.test(t)))) n.nodeValue = tr(n.nodeValue); }
-  root.querySelectorAll('[title],[aria-label],[placeholder]').forEach((el) => ['title', 'aria-label', 'placeholder'].forEach((a) => { const v = el.getAttribute(a); if (v) el.setAttribute(a, tr(v)); }));
+  for (const n of nodes) {
+    let o = ORIG.get(n);
+    if (o !== undefined && n.nodeValue !== o.shown) { o = undefined; ORIG.delete(n); } // تغيّر النص برمجيًا: اعتبره أصلًا جديدًا
+    const base = o ? o.ar : n.nodeValue;
+    const t = base.trim();
+    if (!t || !(EN[t] !== undefined || PAT.some(([re]) => re.test(t)))) continue;
+    const shown = lang === 'ar' ? base : tr(base);
+    if (shown !== n.nodeValue) n.nodeValue = shown;
+    ORIG.set(n, { ar: base, shown });
+  }
+  root.querySelectorAll('[title],[aria-label],[placeholder]').forEach((el) => ATTRS.forEach((a) => {
+    const v = el.getAttribute(a); if (!v) return;
+    const k = 'data-ar-' + a; let ar = el.getAttribute(k);
+    if (ar === null || el.getAttribute('data-sh-' + a) !== v) { ar = v; el.setAttribute(k, v); }
+    const shown = lang === 'ar' ? ar : tr(ar);
+    el.setAttribute(a, shown); el.setAttribute('data-sh-' + a, shown);
+  }));
 }
 if (lang !== 'ar') { document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; }

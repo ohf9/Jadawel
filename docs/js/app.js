@@ -4,7 +4,7 @@ import { Pane } from './pane.js';
 import { newWorkbook, newSheet, readXlsx, readSheetJS, readCsv, writeXlsx, writeCsv, rebaseAfterSave } from './io.js';
 import * as store from './store.js';
 import { computeFill } from './fill.js';
-import { settings, saveSettings, tr, lang, translateDom } from './i18n.js';
+import { settings, saveSettings, tr, lang, setLang, translateDom } from './i18n.js';
 import { isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
 async function claimSlot() {
@@ -547,7 +547,17 @@ const app = window.app = {
     const nl = $('#set-lang').value; const changed = nl !== settings.lang;
     saveSettings({ lang: nl, newRtl: $('#set-dir').value === 'rtl' });
     $('#settings').close();
-    if (changed) { await this.flushAll(); location.reload(); } else this.toast('تم حفظ الإعدادات');
+    if (changed) this.applyLang(nl);
+    this.toast('تم حفظ الإعدادات');
+  },
+  // تبديل اللغة فورًا دون إعادة تحميل
+  applyLang(nl) {
+    setLang(nl);
+    translateDom(document.body);
+    this.panes.forEach((q) => { translateDom(q.el); if (q.sh) { q.refreshHead(); q.renderTabs(); } });
+    $('#fm-nf').innerHTML = NF_PRESETS.map(([v, l]) => `<option value="${esc(v)}">${tr(l)}</option>`).join('') + `<option value="__custom" hidden>${tr('مخصص')}</option>`;
+    this.renderTabs(); this.updateStatus(); this.syncToolbar();
+    this.panes.forEach((q) => { if (q.sh) { q.render(true); q.updateSel(); } else q.show(q.wb || null); });
   },
   updateStatus() {
     const p = this.pane(), st = $('#status');
