@@ -5,6 +5,7 @@ import { newWorkbook, newSheet, readXlsx, readSheetJS, readCsv, writeXlsx, write
 import * as store from './store.js';
 import { computeFill } from './fill.js';
 import { settings, saveSettings, tr, lang, setLang, translateDom } from './i18n.js';
+import { addRecent, listRecents, removeRecent, clearRecents, resolveRecent } from './recents.js';
 import { applyTheme } from './theme.js';
 import { fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
@@ -408,6 +409,7 @@ const app = window.app = {
         const nm = file.name || (it.handle && it.handle.name) || '';
         // نحفظ في نفس الملف فقط عندما يكون xlsx أو csv، أما XLS وODS فيُحفظ عملك كملف XLSX جديد
         if (it.handle && /\.(xlsx|csv|tsv|txt)$/i.test(nm) && wb.kind !== 'imported' && !wb.fallback) wb.handle = it.handle;
+        if (it.handle) addRecent(it.handle, nm);
         await this.addWorkbook(wb, this.active);
         if (wb.kind === 'imported') this.toast('تم فتح ' + nm + '. سيُحفظ عملك كملف XLSX جديد، والملف الأصلي لن يتغير.', 6000);
         else if (wb.fallback) this.toast('فُتح الملف بالقراءة المبسطة (تنسيقه معقد). سيُحفظ عملك كنسخة جديدة.', 6000);
@@ -453,12 +455,14 @@ const app = window.app = {
   },
 
   // ---------- الحفظ ----------
-  async save(wb, as) {
+  saveAsFormat(wb, fmt) { return this.save(wb, true, fmt); },
+  async save(wb, as, force) {
     wb = wb || this.pane().wb; if (!wb) return false;
     this.panes.forEach((p) => { if (p.editing && p.wb === wb) p.commitEdit(); });
     const isCsv = /\.(csv|tsv|txt)$/i.test(wb.name);
     let fmt = isCsv ? 'csv' : 'xlsx';
-    if (as) {
+    if (as && force) fmt = force;
+    else if (as) {
       const r = await this.dialog('حفظ باسم', 'اختر صيغة النسخة الجديدة. الملف الأصلي لن يتغير.', [
         { label: 'XLSX (Excel)', value: 'xlsx', primary: true }, { label: 'CSV (الورقة الحالية فقط)', value: 'csv' }, { label: 'إلغاء', value: null }]);
       if (!r) return false; fmt = r;
@@ -518,6 +522,7 @@ const app = window.app = {
       if (fmt === 'xlsx') { await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); wb.fallback = false; wb.kind = 'xlsx'; }
       else wb.sheets.forEach((s) => { s.edited = new Set(); });
       if (savedAs !== wb.name) wb.name = savedAs;
+      if (handle) addRecent(handle, savedAs);
       this.markDirty(wb, false); this.refreshWb(wb);
       await this.persist(wb);
       this.toast(`${how}: ${savedAs}`);
@@ -571,6 +576,38 @@ const app = window.app = {
       const dirty = docs.filter((d) => d.dirty).length;
       this.toast(`تمت استعادة ${docs.length} ملف${dirty ? `، منها ${dirty} بتعديلات غير محفوظة` : ''}`, 5000);
     } catch (e) { console.error(e); this.toast('تعذرت استعادة الجلسة السابقة: ' + e.message); }
+  },
+
+  // ---------- شاشة الملفات (الأخيرة / جديد / فتح / حفظ باسم) ----------
+  async showBackstage(page = 'recent') {
+    const b = $('#backstage'); this.hideMini(); closePopover();
+    b.hidden = false; translateDom(b); requestAnimationFrame(() => b.classList.add('in'));
+    this.bsPage(page); const f = b.querySelector('.bs-nav .on'); if (f) f.focus({ preventScroll: true });
+  },
+  hideBackstage() { const b = $('#backstage'); b.classList.remove('in'); setTimeout(() => { b.hidden = true; }, 180); const p = this.pane(); p && p.sh && p.focus(); },
+  bsPage(page) {
+    document.querySelectorAll('#backstage .bs-nav [data-p]').forEach((x) => x.classList.toggle('on', x.dataset.p === page));
+    document.querySelectorAll('#backstage section').forEach((x) => { x.hidden = x.dataset.p !== page; });
+    if (page === 'recent') this.renderRecents();
+  },
+  ago(t) {
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return tr('الآن'); if (m < 60) return lang === 'ar' ? `قبل ${m} دقيقة` : `${m} min ago`;
+    const h = Math.round(m / 60); if (h < 24) return lang === 'ar' ? `قبل ${h} ساعة` : `${h} h ago`;
+    return new Date(t).toLocaleDateString(lang === 'ar' ? 'ar' : 'en', { day: 'numeric', month: 'short' });
+  },
+  async renderRecents() {
+    const box = $('#bs-list'); const list = await listRecents();
+    this.recentList = list;
+    $('#bs-clear').hidden = !list.length;
+    if (!list.length) { box.innerHTML = `<div class="bs-empty">${tr('لا توجد ملفات أخيرة بعد. الملفات التي تفتحها أو تحفظها من الجهاز تظهر هنا.')}</div>`; return; }
+    const ic = (n) => (/\.csv|\.tsv|\.txt$/i.test(n) ? '📄' : '📗');
+    box.innerHTML = list.map((e, i) => `<div class="rec" role="button" tabindex="0" data-i="${i}"><span class="ic">${ic(e.name)}</span><span class="nm"><b>${esc(e.name)}</b><small>${esc(this.ago(e.time))}</small></span><button class="rm" data-rm="${i}" title="${tr('إزالة من القائمة')}">✕</button></div>`).join('');
+  },
+  async openRecent(i) {
+    const e = this.recentList && this.recentList[i]; if (!e) return;
+    try { const h = await resolveRecent(e); this.hideBackstage(); await this.openFiles([{ handle: h }]); }
+    catch (err) { this.toast(err.message === 'permission' ? 'لم يُمنح إذن الوصول لهذا الملف. افتحه من «فتح» مرة أخرى.' : 'تعذر فتح الملف: قد يكون نُقل أو حُذف.', 6000); }
   },
 
   // ---------- شريط الأدوات العائم ----------
@@ -711,6 +748,19 @@ const app = window.app = {
     on('#fm-color', () => this.pickColor('color', this.lastColor.color)); on('#fm-fill', () => this.pickColor('fill', this.lastColor.fill));
     on('#fm-color-dd', () => this.openColorMenu('color')); on('#fm-fill-dd', () => this.openColorMenu('fill'));
     on('#btn-settings', () => this.openSettings());
+    on('#btn-files', () => this.showBackstage('recent')); on('#bs-close', () => this.hideBackstage());
+    $('#backstage .bs-nav').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) this.bsPage(b.dataset.p); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backstage').hidden) { e.stopPropagation(); this.hideBackstage(); } }, true);
+    $('#backstage').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('rec')) { e.preventDefault(); this.openRecent(+e.target.dataset.i); } });
+    $('#bs-list').addEventListener('click', async (e) => {
+      const rm = e.target.closest('[data-rm]'); if (rm) { e.stopPropagation(); await removeRecent(this.recentList[+rm.dataset.rm].id); return this.renderRecents(); }
+      const r = e.target.closest('.rec'); if (r) this.openRecent(+r.dataset.i);
+    });
+    on('#bs-clear', async () => { await clearRecents(); this.renderRecents(); });
+    on('#bs-new', () => { this.hideBackstage(); this.newWb(); });
+    on('#bs-open-dev', () => { this.hideBackstage(); this.openDialog(); }); on('#bs-open-cloud', () => { this.hideBackstage(); this.openDialog(); });
+    on('#bs-save-x', async () => { const p = this.pane(); if (!p.wb) return this.toast('افتح ملفًا أولًا'); this.hideBackstage(); this.saveAsFormat(p.wb, 'xlsx'); });
+    on('#bs-save-c', async () => { const p = this.pane(); if (!p.wb) return this.toast('افتح ملفًا أولًا'); this.hideBackstage(); this.saveAsFormat(p.wb, 'csv'); });
     $('#minibar').addEventListener('mousedown', (e) => e.preventDefault());
     $('#minibar').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.miniAction(b.dataset.a); });
     document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#minibar')) this.hideMini(); }, true);

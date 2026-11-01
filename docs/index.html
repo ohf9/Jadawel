@@ -43,6 +43,7 @@
 
 <div class="ribbon" role="toolbar">
   <div class="rg"><div class="rg-body">
+    <button id="btn-files" class="rb big" title="الملفات الأخيرة وأماكن الفتح والحفظ"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.2 2"/></svg><span>الأخيرة</span></button>
     <button id="btn-new" class="rb big" title="مصنف جديد (Ctrl+N)"><svg><use href="#i-new"/></svg><span>جديد</span></button>
     <button id="btn-open" class="rb big" title="فتح ملف أو أكثر (Ctrl+O)"><svg><use href="#i-open"/></svg><span>فتح</span></button>
     <button id="btn-save" class="rb big" title="حفظ في نفس الملف (Ctrl+S)"><svg><use href="#i-save"/></svg><span>حفظ</span></button>
@@ -141,6 +142,40 @@
   <p class="note">تتغير الإعدادات فورًا، وتبقى ملفاتك وتعديلاتك كما هي.</p>
   <div class="btns"><button id="set-save" class="primary">حفظ</button><button id="set-cancel">إلغاء</button></div>
 </dialog>
+<div id="backstage" hidden role="dialog" aria-modal="true">
+  <nav class="bs-nav">
+    <button class="bs-back" id="bs-close" title="رجوع">➜ رجوع</button>
+    <button data-p="recent" class="on">الأخيرة</button>
+    <button data-p="new">جديد</button>
+    <button data-p="open">فتح</button>
+    <button data-p="saveas">حفظ باسم</button>
+  </nav>
+  <main class="bs-main">
+    <section data-p="recent">
+      <div class="bs-h"><h2>الأخيرة</h2><button class="mini" id="bs-clear">مسح القائمة</button></div>
+      <div id="bs-list"></div>
+    </section>
+    <section data-p="new" hidden>
+      <h2>جديد</h2>
+      <div class="bs-cards"><button class="card" id="bs-new"><b>مصنف فارغ</b><span>ابدأ بجدول جديد بإعدادات اتجاه الأوراق الحالية.</span></button></div>
+    </section>
+    <section data-p="open" hidden>
+      <h2>فتح</h2>
+      <div class="bs-cards">
+        <button class="card" id="bs-open-dev"><b>📱 هذا الجهاز</b><span>تصفح ملفات التخزين الداخلي والتنزيلات والمستندات.</span></button>
+        <button class="card" id="bs-open-cloud"><b>☁ OneDrive وGoogle Drive وبطاقة SD</b><span>تظهر في نافذة اختيار الملفات (القائمة الجانبية) إن كان تطبيقها مثبتًا على الجهاز. نفتح الملف مباشرة من مكانه ونحفظ فيه عند الحفظ.</span></button>
+      </div>
+      <p class="note">يمكنك أيضًا فتح الملفات من مدير الملفات: اختر «جداول» من «فتح بواسطة».</p>
+    </section>
+    <section data-p="saveas" hidden>
+      <h2>حفظ باسم</h2>
+      <div class="bs-cards">
+        <button class="card" id="bs-save-x"><b>📗 مصنف Excel (XLSX)</b><span>اختر المكان من نافذة النظام: الجهاز أو OneDrive أو Google Drive أو بطاقة SD.</span></button>
+        <button class="card" id="bs-save-c"><b>📄 CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+      </div>
+    </section>
+  </main>
+</div>
 <div id="minibar" role="toolbar" hidden>
   <button data-a="cut"><svg><use href="#i-cut"/></svg><span>قص</span></button>
   <button data-a="copy"><svg><use href="#i-copy"/></svg><span>نسخ</span></button>

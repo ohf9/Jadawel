@@ -27,6 +27,8 @@ jobs:
           sed -i 's#<activity#<activity android:resizeableActivity="true" android:screenOrientation="unspecified"#' "$M"
           sed -i 's#android:configChanges="[^"]*"#android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density|locale|layoutDirection"#' "$M"
           cp android-patch/*.java android/app/src/main/java/com/jadawel/app/
+          # أيقونة التطبيق (جدول بيانات)
+          cp -r android-patch/res/. android/app/src/main/res/
           # فتح ملفات Excel وCSV من مدير الملفات ومن "مشاركة"
           python3 - <<'PY'
           p='android/app/src/main/AndroidManifest.xml'
