@@ -31,7 +31,7 @@ export class Pane {
         </div>
       </div>
       <textarea class="sink" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="الشبكة"></textarea>
-      <div class="empty">لا يوجد ملف في هذه اللوحة.<br>افتح ملفًا أو اختر تبويبًا من الأعلى.</div>
+      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="big e-new">＋ مصنف جديد</button><button class="big e-open">📂 فتح ملف</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
       <div class="sheets"><div class="sheet-tabs"></div><button class="mini add-sheet" title="ورقة جديدة">+ ورقة</button></div>`;
     host.appendChild(el);
     const $ = (s) => el.querySelector(s);
@@ -393,6 +393,8 @@ export class Pane {
     this.tabs.addEventListener('dblclick', (e) => { const b = e.target.closest('.stab'); if (b) this.app.renameSheet(this, +b.dataset.i); });
     this.tabs.addEventListener('contextmenu', (e) => { const b = e.target.closest('.stab'); if (b) { e.preventDefault(); this.app.sheetMenu(this, +b.dataset.i); } });
     this.el.querySelector('.add-sheet').addEventListener('click', () => this.app.addSheet(this));
+    this.el.querySelector('.e-new').addEventListener('click', () => this.app.newWb(this.idx));
+    this.el.querySelector('.e-open').addEventListener('click', () => this.app.openDialog(this.idx));
     this.el.querySelector('.dir-btn').addEventListener('click', () => this.app.toggleDir(this));
   }
   autoScroll(p) {

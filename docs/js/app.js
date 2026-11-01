@@ -19,7 +19,7 @@ const app = window.app = {
     this.panes.forEach((p) => p.show(null));
     this.bindUI(); this.bindDivider();
     this.setActive(0);
-    this.restore().then(() => this.handleLaunch());
+    this.restore().then(() => { if (!this.wbs.length) this.setLayout(window.innerWidth < 700 ? 'v' : 'h'); this.handleLaunch(); });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
   },
@@ -46,8 +46,7 @@ const app = window.app = {
     this.renderTabs(); this.persistMeta();
   },
   showIn(paneIdx, wb) {
-    const p = this.panes[paneIdx], other = this.panes[1 - paneIdx];
-    if (this.layout !== 'single' && other.wb === wb && p.wb) { const mine = p.wb; other.show(mine); }
+    const p = this.panes[paneIdx];
     p.show(wb); this.setActive(paneIdx); this.renderTabs(); this.persistMeta();
   },
   renderTabs() {
@@ -59,7 +58,7 @@ const app = window.app = {
         ${where.length ? `<span class="badge">${where.join('،')}</span>` : ''}<span class="fname">${esc(w.name)}</span>${w.dirty ? '<span class="dot" title="غير محفوظ">●</span>' : ''}
         <button class="x" data-close="${w.id}" title="إغلاق">×</button></div>`;
     }).join('');
-    $('#hint').style.display = this.wbs.length ? 'none' : '';
+    
     document.title = (this.pane().wb ? this.pane().wb.name + ' — ' : '') + 'جداول';
   },
   async addWorkbook(wb, paneIdx) {
@@ -230,6 +229,16 @@ const app = window.app = {
     this.toast(`تم نسخ البيانات إلى «${p.wb.name}» عند ${a1(r, c)}`);
   },
 
+  // عرض الملف الحالي في اللوحة الأخرى (ورقتان من نفس الملف جنبًا إلى جنب)
+  secondView() {
+    const p = this.pane(); if (!p.wb) return this.toast('افتح ملفًا أولًا');
+    if (this.layout === 'single') this.setLayout(window.innerWidth < 700 ? 'v' : 'h');
+    const q = this.panes[1 - p.idx], wb = p.wb, si = wb.sheets.indexOf(p.sh);
+    q.show(wb, { si: wb.sheets.length > 1 ? (si + 1) % wb.sheets.length : si, sel: { ar: 0, ac: 0, fr: 0, fc: 0 }, st: 0, sl: 0 });
+    this.renderTabs(); this.persistMeta();
+    this.toast(wb.sheets.length > 1 ? 'اللوحتان تعرضان ورقتين من نفس الملف، وأي تعديل يظهر في الاثنتين' : 'اللوحتان تعرضان نفس الورقة. أضف ورقة جديدة لتتحكم بورقتين');
+  },
+
   // ---------- الأوراق ----------
   addSheet(p) {
     if (!p.wb) return;
@@ -265,7 +274,8 @@ const app = window.app = {
   refreshWb(wb) { this.panes.forEach((q) => { if (q.wb === wb) { q.renderTabs(); q.refreshHead(); } }); },
 
   // ---------- فتح الملفات ----------
-  async openDialog() {
+  async openDialog(paneIdx) {
+    if (paneIdx != null) this.setActive(paneIdx);
     if (FS) {
       try {
         const hs = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'جداول بيانات', accept: { [XLSX_MIME]: ['.xlsx'], 'text/csv': ['.csv', '.tsv', '.txt'] } }] });
@@ -304,7 +314,8 @@ const app = window.app = {
     if (low.endsWith('.xls')) { this.toast('صيغة XLS القديمة غير مدعومة بعد (مخطط لها في المرحلة 4). احفظ الملف بصيغة XLSX من Excel ثم افتحه.', 7000); return null; }
     this.toast(`نوع الملف «${n}» غير مدعوم. المدعوم حاليًا: XLSX وCSV.`, 5000); return null;
   },
-  async newWb() {
+  async newWb(paneIdx) {
+    if (paneIdx != null) this.setActive(paneIdx);
     let n = 1; while (this.wbs.some((w) => w.name === `مصنف${n}.xlsx`)) n++;
     const wb = newWorkbook(`مصنف${n}.xlsx`);
     await this.addWorkbook(wb);
@@ -485,6 +496,7 @@ const app = window.app = {
   bindUI() {
     const on = (id, fn) => $(id).addEventListener('click', fn);
     on('#btn-new', () => this.newWb());
+    on('#btn-second', () => this.secondView());
     on('#btn-open', () => this.openDialog());
     on('#btn-save', () => this.save());
     on('#btn-saveas', () => this.save(null, true));
