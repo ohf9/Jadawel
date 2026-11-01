@@ -32,7 +32,7 @@ export class Pane {
         </div>
       </div>
       <textarea class="sink" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="الشبكة"></textarea>
-      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="big e-new">＋ مصنف جديد</button><button class="big e-open">📂 فتح ملف</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
+      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="cta e-new">＋ مصنف جديد</button><button class="cta e-open">📂 فتح ملف</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
       <div class="sheets"><div class="sheet-tabs"></div><button class="mini add-sheet" title="ورقة جديدة">+ ورقة</button></div>`;
     host.appendChild(el);
     const $ = (s) => el.querySelector(s);
@@ -126,7 +126,7 @@ export class Pane {
         const num = isNumCell(cell) || typeof cell.v === 'boolean';
         let w = cx[c + 1] - cx[c];
         // النص يمتد إلى الخلايا الفارغة المجاورة كما في Excel
-        if (!num && txt && !(s && s.al && s.al !== 'left' && !sh.rtl)) {
+        if (!num && txt && !(s && (s.al || s.fill))) {
           let k = c + 1; while (k <= c1 + 6 && k < sh.ncols && !cells.has(key(r, k)) && k - c < 12) { w += cx[k + 1] - cx[k]; k++; }
         }
         let st2 = `inset-inline-start:${cx[c]}px;top:${ry[r]}px;width:${w}px;height:${ry[r + 1] - ry[r]}px;`;

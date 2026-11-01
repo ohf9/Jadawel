@@ -123,8 +123,8 @@ body.dragging,body.dragging *{cursor:copy!important}
 .sink{position:absolute;top:0;inset-inline-start:0;width:1px;height:1px;opacity:0;border:0;padding:0;resize:none;overflow:hidden;pointer-events:none;caret-color:transparent}
 .warn{font-size:11px;color:#8a5a00;background:#fff4d6;border:1px solid #f0d68a;border-radius:10px;padding:1px 8px;white-space:nowrap;cursor:help}
 .empty-box{display:flex;flex-direction:column;gap:12px;align-items:center}
-.big{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px 26px;font-size:16px;min-width:200px;min-height:48px}
-.big.e-open{background:#fff;color:var(--accent);border:2px solid var(--accent)}
+.cta{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px 26px;font-size:16px;min-width:200px;min-height:48px}
+.cta.e-open{background:#fff;color:var(--accent);border:2px solid var(--accent)}
 .empty .small{font-size:12px}
 .fname,.pane-title{unicode-bidi:plaintext}
 dialog .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
