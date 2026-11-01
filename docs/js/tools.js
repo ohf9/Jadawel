@@ -75,6 +75,39 @@ const snapOf = (sh) => ({
   filter: sh.filter ? { ...sh.filter, hide: Object.fromEntries(Object.entries(sh.filter.hide || {}).map(([k, v]) => [k, new Set(v)])), rows: new Set(sh.filter.rows || []) } : null,
 });
 
+
+// يعيد ترتيب تبويب «الرئيسية» على مجموعات Excel: الحافظة / الخط / المحاذاة / الرقم / الأنماط / الخلايا / التعديل، ويسمّي مجموعات كل التبويبات
+function this_restructure(rib) {
+  const hp = rib.querySelector('[data-t=home]'); const gs = [...hp.querySelectorAll(':scope > .rg')];
+  const has = (sel) => gs.find((g) => g.querySelector(sel));
+  const body = (g) => g.querySelector('.rg-body');
+  const mv = (g, sel, to) => { const el = g && g.querySelector(sel); if (el && to) body(to).append(el); return el; };
+  const gClip = has('#btn-paste'), gFont = has('#fm-font'), gAl = has('#fm-al'), gNum = has('#fm-nf'), gAuto = has('#btn-autosum'), gNfb = has('[data-act^="nf:"]');
+  const gMrg = has('[data-act=mergeMenu]'), gFill = has('[data-act=fillMenu]'), gSort = has('[data-act=sortMenu]');
+  mv(gMrg, '[data-act=borderMenu]', gFont); mv(gMrg, '[data-act=mergeMenu]', gAl);
+  if (gNfb) { const c = gNfb.querySelector('.col2'); if (c) body(gNum).prepend(c); gNfb.remove(); }
+  const mk = (html) => { const d = document.createElement('div'); d.className = 'rg'; d.innerHTML = `<div class="rg-body">${html}</div>`; return d; };
+  const gSty = mk(B('cfMenu', 'cf', 'تنسيق شرطي', 'تمييز الخلايا تلقائيًا حسب قيمتها: ألوان، أشرطة، تدرجات')); if (gMrg) gMrg.remove();
+  const gCells = mk(B('insMenu', 'insrow', 'إدراج', 'إدراج صفوف أو أعمدة أو ورقة') + B('delMenu', 'delrow', 'حذف', 'حذف صفوف أو أعمدة أو ورقة'));
+  mv(gFill, '[data-act=fmtMenu]', gCells);
+  mv(gFill, '[data-act=fillMenu]', gAuto); mv(gFill, '[data-act=clearMenu]', gAuto); mv(gSort, '[data-act=sortMenu]', gAuto); mv(gSort, '[data-act=findDlg]', gAuto);
+  if (gFill) gFill.remove(); if (gSort) gSort.remove();
+  gNum.after(gSty); gSty.after(gCells); gCells.after(gAuto);
+  const names = {
+    home: [['#btn-paste', 'الحافظة'], ['#fm-font', 'الخط'], ['#fm-al', 'المحاذاة'], ['#fm-nf', 'الرقم'], ['[data-act=cfMenu]', 'الأنماط'], ['[data-act=insMenu]', 'الخلايا'], ['[data-act=sumMenu]', 'التعديل']],
+    insert: [['[data-act=insRow]', 'الخلايا'], ['[data-act^="chart:"]', 'الرسوم البيانية'], ['[data-act=newSheet]', 'الأوراق'], ['[data-act=fnDialog]', 'الدوال']],
+    formulas: [['[data-act=sumMenu]', 'مكتبة الدوال'], ['[data-act^="lib:"]', 'فئات الدوال'], ['[data-act=showF]', 'تدقيق الصيغ']],
+    data: [['[data-act=sortAZ]', 'ترتيب'], ['[data-act=filter]', 'تصفية'], ['[data-act=removeDup]', 'أدوات البيانات']],
+    view: [['[data-layout-btn]', 'النوافذ'], ['#btn-grid', 'إظهار'], ['[data-act=zoomIn]', 'التكبير'], ['[data-act=freezeMenu]', 'النافذة'], ['[data-act=swapPanes]', 'النوافذ']],
+  };
+  for (const [t, list] of Object.entries(names)) {
+    const panel = rib.querySelector(`[data-t=${t}]`); if (!panel) continue;
+    for (const g of panel.querySelectorAll(':scope > .rg')) {
+      const hit = list.find(([sel]) => g.querySelector(sel)); if (hit && !g.querySelector('.rg-label')) g.insertAdjacentHTML('beforeend', `<div class="rg-label">${tr(hit[1])}</div>`);
+    }
+  }
+}
+
 export function install(app) {
   // ----- بناء الأشرطة -----
   const build = () => {
@@ -89,6 +122,7 @@ export function install(app) {
     sb.insertAdjacentHTML('beforeend', `<span id="zoomctl" class="zoomctl" dir="ltr"><button data-act="zoomOut" title="تصغير" aria-label="تصغير">−</button><input id="zoomrng" type="range" min="25" max="400" step="5" value="100" aria-label="التكبير"><button data-act="zoomIn" title="تكبير" aria-label="تكبير">+</button><button id="zoomval" data-act="zoomMenu" title="مستوى التكبير">100%</button></span>`);
     // استبدال زر المسح القديم بقائمة «مسح» الكاملة
     const oc = document.getElementById('btn-clear'); if (oc) oc.remove();
+    this_restructure(rib);
     const fx = document.getElementById('btn-autosum'); if (fx) { fx.removeAttribute('id'); fx.dataset.act = 'sumMenu'; fx.title = 'جمع تلقائي ▾ (Alt+=)'; }
   };
   build();
@@ -112,6 +146,8 @@ export function install(app) {
           { t: 'تثبيت الألواح (فوق وقبل الخلية النشطة)', f: () => this.freezePanes(p, 'sel') }, { t: 'تثبيت الصف العلوي', f: () => this.freezePanes(p, 'row') },
           { t: 'تثبيت العمود الأول', f: () => this.freezePanes(p, 'col') }, '-', { t: 'إلغاء تثبيت الألواح', f: () => this.freezePanes(p, 'off'), off: !(p.sh.freeze && (p.sh.freeze.rows || p.sh.freeze.cols)) }]);
         case 'cfMenu': return this.cfMenu(btn);
+        case 'insMenu': return this.menu(btn, [{ t: 'إدراج صفوف', f: () => this.insertLines(p, 'r') }, { t: 'إدراج أعمدة', f: () => this.insertLines(p, 'c') }, { t: 'إدراج ورقة', f: () => this.addSheet(p) }]);
+        case 'delMenu': return this.menu(btn, [{ t: 'حذف صفوف', f: () => this.deleteLines(p, 'r') }, { t: 'حذف أعمدة', f: () => this.deleteLines(p, 'c') }]);
         case 'newSheet': return this.addSheet(p);
         case 'fnDialog': return this.fnDialog();
         case 'today': return this.putNow(p, 'date');

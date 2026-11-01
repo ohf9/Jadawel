@@ -358,6 +358,7 @@ dialog[open]{animation:dlgIn .24s cubic-bezier(.2,.85,.25,1)}dialog[open]::backd
 #kbd .kk{flex:1;min-width:0;height:clamp(30px,4.6vh,36px);display:grid;place-items:center;border-radius:8px;background:var(--paper);border:1px solid var(--line);font-size:16px;font-weight:600;color:var(--text);box-shadow:0 1px 0 rgba(0,0,0,.08);transition:background .08s,transform .06s;cursor:pointer}
 #kbd .kk.fn{background:var(--hdr);font-size:14px;font-weight:500}
 #kbd .kk.sm{font-size:12px}
+#kbd .kk.sp{flex:3}
 #kbd .kk.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
 #kbd .kk.down{background:var(--accent2);transform:scale(.94)}
 #kbd .kk.ok.down{background:var(--accent-d)}
@@ -370,6 +371,7 @@ dialog[open]{animation:dlgIn .24s cubic-bezier(.2,.85,.25,1)}dialog[open]::backd
   #kbd.side-r{right:12px}#kbd.side-l{left:12px}
   #kbd .kh{display:flex;justify-content:flex-end}#kbd .kh .kk{flex:0 0 34px;height:20px;font-size:13px}
   #kbd .kk{height:30px;font-size:15px;border-radius:7px}
+  #kbd.wide{width:352px}
 }
 
 /* ====== شريط مضغوط للنوافذ الضيقة (نصف الشاشة / الهاتف) ====== */
@@ -417,3 +419,7 @@ dialog[open]{animation:dlgIn .24s cubic-bezier(.2,.85,.25,1)}dialog[open]::backd
 .fz-eh,.fz-ev{position:absolute;background:var(--accent);opacity:.55}.fz-eh{height:2px}.fz-ev{width:2px}
 .sel,.act{z-index:4}
 .cflist{display:flex;flex-direction:column;gap:6px;min-width:min(380px,80vw)}.cfrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px}.cfrow .cfr{font-family:Consolas,monospace;direction:ltr;font-weight:600;color:var(--accent-d)}.cfrow .cfl{flex:1;font-size:13px}.cfx{border:0;background:transparent;color:#c0392b;font-size:15px;width:28px;height:28px;border-radius:6px}.cfx:hover{background:var(--hdr)}
+.bs-cards.tpl{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.hist-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}.hist-row small{display:block;color:var(--muted);margin-top:2px}.bs-note{color:var(--muted);margin:0 0 12px}
+@media (min-width:900px){.rg-label{display:block;font-size:10.5px;padding:0 0 2px;line-height:1.2;white-space:nowrap}}
+#kbd[data-layer=ar] .kr:not(:last-child){direction:rtl}

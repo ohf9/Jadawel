@@ -12,6 +12,7 @@ import { applyTheme } from './theme.js';
 import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { install as installTools } from './tools.js';
+import { installBackstageExtra } from './bsextra.js';
 import { installCF } from './cf.js';
 import { installFreeze } from './freeze.js';
 import { installCharts } from './chartui.js';
@@ -565,7 +566,7 @@ const app = window.app = {
         savedAs = as ? base + ' - نسخة.' + fmt : suggested;
         await this.download(blob, savedAs); how = 'تم حفظ الملف';
       }
-      if (fmt === 'xlsx') { await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); wb.fallback = false; wb.kind = 'xlsx'; }
+      if (fmt === 'xlsx') { store.putVer(wb.id, Date.now(), data).then(() => store.pruneVers(wb.id, 20)).catch(() => {}); await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); wb.fallback = false; wb.kind = 'xlsx'; }
       else wb.sheets.forEach((s) => { s.edited = new Set(); });
       if (savedAs !== wb.name) wb.name = savedAs;
       if (handle) addRecent(handle, savedAs);
@@ -1063,3 +1064,4 @@ installFreeze(Pane, app);
 installCF(app);
 app.init();
 installKbd(app); installUnsup(app);
+installBackstageExtra(app);

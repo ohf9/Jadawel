@@ -5,12 +5,26 @@ const ROWS = [
   [['1'], ['2'], ['3'], ['+', 'op'], ['⌫', 'bs', 'fn'], ['▲', 'up', 'fn'], ['✓', 'enter', 'ok']],
   [['4'], ['5'], ['6'], ['−', 'op', '', '-'], ['◀', 'left', 'fn'], ['▼', 'down', 'fn'], ['▶', 'right', 'fn']],
   [['7'], ['8'], ['9'], ['×', 'op', '', '*'], ['=', 'op'], ['(', 'op'], [')', 'op']],
-  [['0'], ['.'], [',', 'op'], ['÷', 'op', '', '/'], ['%', 'op'], ['Tab', 'tab', 'fn sm'], ['ABC', 'abc', 'fn sm']],
+  [['0'], ['.'], [',', 'op'], ['÷', 'op', '', '/'], ['%', 'op'], ['Tab', 'tab', 'fn sm'], ['أبج', 'layer', 'fn sm', 'ar']],
 ];
 
+const L = (str) => str.split(' ').map((c) => [c]);
+const bottom = (other, otherLabel) => [['123', 'layer', 'fn sm', 'num'], [otherLabel, 'layer', 'fn sm', other], ['␣', 'ch', 'sp', ' '], ['⌫', 'bs', 'fn'], ['✓', 'enter', 'ok']];
+const LAYERS = {
+  num: ROWS,
+  ar: [L('ض ص ث ق ف غ ع ه خ ح ج'), L('ش س ي ب ل ا ت ن م ك'), [...L('ئ ء ؤ ر ى ة و ز ظ د ط')], [...bottom('en', 'EN'), ['⌨', 'abc', 'fn sm']]],
+  en: [L('q w e r t y u i o p'), L('a s d f g h j k l'), L('z x c v b n m , .'), [...bottom('ar', 'ع'), ['⌨', 'abc', 'fn sm']]],
+};
+
 export function install(app) {
+  let layer = 'num';
   const el = document.createElement('div'); el.id = 'kbd'; el.dir = 'ltr'; el.hidden = true; el.setAttribute('role', 'group'); el.setAttribute('aria-label', tr('لوحة المفاتيح'));
-  el.innerHTML = `<div class="kh"><div class="kk fn sm" role="button" data-k="side" title="${tr('نقل لوحة الأرقام إلى الجهة الأخرى')}">⇄</div></div>` + ROWS.map((r) => `<div class="kr">${r.map(([t, act, cls, ch]) => `<div class="kk ${cls || ''}" role="button" data-k="${act || 'ch'}" data-c="${ch || t}">${t}</div>`).join('')}</div>`).join('');
+  const draw = () => {
+    el.classList.toggle('wide', layer !== 'num'); el.dataset.layer = layer;
+    el.innerHTML = `<div class="kh"><div class="kk fn sm" role="button" data-k="side" title="${tr('نقل لوحة الأرقام إلى الجهة الأخرى')}">⇄</div></div>` + LAYERS[layer].map((r) => `<div class="kr">${r.map(([t, act, cls, ch]) => `<div class="kk ${cls || ''}" role="button" data-k="${act || 'ch'}" data-c="${ch || t}">${t}</div>`).join('')}</div>`).join('');
+  };
+  app.kbdLayer = (n) => { layer = n; draw(); };
+  draw();
   const sb = document.querySelector('.statusbar'); sb.parentNode.insertBefore(el, sb);
   sb.insertAdjacentHTML('afterbegin', `<button id="kbd-toggle" class="kbd-toggle" title="${tr('إظهار/إخفاء لوحة الأرقام')}" aria-label="${tr('إظهار/إخفاء لوحة الأرقام')}">⌨</button>`);
 
@@ -36,14 +50,15 @@ export function install(app) {
   const press = (k, c) => {
     const p = app.pane(); if (!p || !p.sh) return;
     if (k === 'side') { saveSettings({ kpSide: settings.kpSide === 'left' ? 'right' : 'left' }); app.syncKbd(); return; }
+    if (k === 'layer') { layer = c; draw(); return; }
     if (k === 'ch' || k === 'op') return insert(p, c);
     if (k === 'bs') {
       if (!p.editing) { p.startEdit('', 'enter'); return; }
       const ed = target(p), s = ed.selectionStart, e = ed.selectionEnd; if (s !== e) ed.value = ed.value.slice(0, s) + ed.value.slice(e), ed.setSelectionRange(s, s); else if (s > 0) ed.value = ed.value.slice(0, s - 1) + ed.value.slice(s), ed.setSelectionRange(s - 1, s - 1);
       ed.dispatchEvent(new Event('input', { bubbles: true })); return;
     }
-    if (k === 'enter') { if (p.editing) { p.commitEdit(!!p.editing.fbar); p.move(1, 0); p.focus(); } else p.startEdit(); return; }
-    if (k === 'tab') { if (p.editing) p.commitEdit(!!p.editing.fbar); p.move(0, 1); p.focus(); return; }
+    if (k === 'enter') { if (p.editing) { p.commitEdit(!!p.editing.fbar); p.move(1, 0); p.focus(); if (layer !== 'num') { layer = 'num'; draw(); } } else p.startEdit(); return; }
+    if (k === 'tab') { if (p.editing) p.commitEdit(!!p.editing.fbar); p.move(0, 1); p.focus(); if (layer !== 'num') { layer = 'num'; draw(); } return; }
     if (k === 'abc') {
       app.sysKb = true; if (!p.editing) p.startEdit();
       const ed = target(p); ed.inputMode = 'text'; p.editing.keep = true; ed.blur(); ed.focus({ preventScroll: true }); setTimeout(() => { p.editing && (p.editing.keep = false); }, 400); return;
@@ -57,11 +72,12 @@ export function install(app) {
   const stop = () => { clearTimeout(timer); clearInterval(timer); timer = null; };
   el.addEventListener('pointerdown', (e) => {
     const b = e.target.closest('.kk'); if (!b) return; e.preventDefault(); b.classList.add('down');
-    const k = b.dataset.k, c = b.dataset.c; press(k, c);
+    const k = b.dataset.k, c = b.dataset.c; if (k === 'abc') return; press(k, c);
     if (['bs', 'up', 'down', 'left', 'right'].includes(k)) timer = setTimeout(() => { timer = setInterval(() => press(k, c), 70); }, 380);
     const up = () => { stop(); b.classList.remove('down'); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true); };
     document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
   });
+  el.addEventListener('click', (e) => { const b = e.target.closest('.kk[data-k="abc"]'); if (b) press('abc'); });
   el.addEventListener('mousedown', (e) => e.preventDefault()); el.addEventListener('touchstart', (e) => { if (e.target.closest('.kk')) e.preventDefault(); }, { passive: false });
   el.addEventListener('contextmenu', (e) => e.preventDefault());
 }

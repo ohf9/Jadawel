@@ -40,3 +40,13 @@ export async function loadAll() {
 }
 export const putMeta = (k, v) => tx('meta', 'readwrite', (s) => s.put(v, k));
 export const getMeta = (k) => tx('meta', 'readonly', (s) => req(s.get(k)));
+
+// سجل الإصدارات: نسخة من الملف عند كل حفظ (آخر عدة نسخ لكل ملف)
+const vk = (id, ts) => `hist:${id}:${ts}`;
+export const putVer = (id, ts, buf) => tx('blobs', 'readwrite', (s) => s.put(buf, vk(id, ts)));
+export const getVer = (id, ts) => tx('blobs', 'readonly', (s) => req(s.get(vk(id, ts))));
+export async function listVers(id) {
+  const ks = await tx('blobs', 'readonly', (s) => req(s.getAllKeys()));
+  return ks.filter((k) => typeof k === 'string' && k.startsWith(`hist:${id}:`)).map((k) => +k.split(':')[2]).sort((a, b) => b - a);
+}
+export async function pruneVers(id, keep) { const all = await listVers(id); for (const ts of all.slice(keep)) await tx('blobs', 'readwrite', (s) => s.delete(vk(id, ts))); }
