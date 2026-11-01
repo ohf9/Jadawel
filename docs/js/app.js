@@ -4,6 +4,15 @@ import { Pane } from './pane.js';
 import { newWorkbook, newSheet, readXlsx, readCsv, writeXlsx, writeCsv, rebaseAfterSave } from './io.js';
 import * as store from './store.js';
 
+async function claimSlot() {
+  if (!navigator.locks) return 1;
+  for (let n = 1; n <= 8; n++) {
+    const got = await new Promise((res) => navigator.locks.request('jadawel-slot-' + n, { ifAvailable: true }, (lock) => { if (!lock) { res(false); return undefined; } res(true); return new Promise(() => {}); }));
+    if (got) return n;
+  }
+  return 1;
+}
+
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const FS = 'showOpenFilePicker' in window && !window.__noFS;
 const $ = (s) => document.querySelector(s);
@@ -19,7 +28,7 @@ const app = window.app = {
     this.panes.forEach((p) => p.show(null));
     this.bindUI(); this.bindDivider();
     this.setActive(0);
-    this.restore().then(() => { if (!this.wbs.length) this.setLayout(window.innerWidth < 700 ? 'v' : 'h'); this.handleLaunch(); });
+    claimSlot().then((n) => { this.slot = n; store.setSlot(n); if (n > 1) document.body.dataset.slot = n; return this.restore(); }).then(() => { if (!this.wbs.length) this.setLayout(window.innerWidth < 700 ? 'v' : 'h'); this.handleLaunch(); });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
   },
@@ -59,7 +68,7 @@ const app = window.app = {
         <button class="x" data-close="${w.id}" title="إغلاق">×</button></div>`;
     }).join('');
     
-    document.title = (this.pane().wb ? this.pane().wb.name + ' — ' : '') + 'جداول';
+    document.title = (this.pane().wb ? this.pane().wb.name + ' — ' : '') + 'جداول' + (this.slot > 1 ? ' (نافذة ' + this.slot + ')' : '');
   },
   async addWorkbook(wb, paneIdx) {
     this.wbs.push(wb);
@@ -497,6 +506,8 @@ const app = window.app = {
     const on = (id, fn) => $(id).addEventListener('click', fn);
     on('#btn-new', () => this.newWb());
     on('#btn-second', () => this.secondView());
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) $('#btn-win').hidden = true;
+    on('#btn-win', () => { if (!window.open(location.pathname, '_blank')) this.toast('اسمح بالنوافذ المنبثقة، أو افتح التطبيق مرة ثانية من أيقونته'); });
     on('#btn-open', () => this.openDialog());
     on('#btn-save', () => this.save());
     on('#btn-saveas', () => this.save(null, true));

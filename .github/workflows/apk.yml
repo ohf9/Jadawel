@@ -20,6 +20,9 @@ jobs:
       - name: Android customisation
         run: |
           M=android/app/src/main/AndroidManifest.xml
+          # كل مرة تفتح فيها التطبيق تظهر نافذة مستقلة (DeX / تعدد النوافذ)، وتبقى النافذتان تعملان معًا
+          sed -i 's#android:launchMode="singleTask"#android:launchMode="standard" android:documentLaunchMode="always"#' "$M"
+          sed -i 's#<application#<application#; s#</application>#<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" /></application>#' "$M"
           # allow tablets of any orientation and DeX multi-window resizing
           sed -i 's#<activity#<activity android:resizeableActivity="true" android:screenOrientation="unspecified"#' "$M"
           sed -i 's#android:configChanges="[^"]*"#android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density|locale|layoutDirection"#' "$M"

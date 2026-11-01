@@ -1,5 +1,7 @@
 // الحفظ التلقائي في IndexedDB (يبقى على الجهاز بعد إغلاق التطبيق أو تعطله)
-const DB = 'jadawel', VER = 1;
+let DB = 'jadawel'; const VER = 1;
+// كل نافذة مفتوحة من التطبيق لها رقم وقاعدة بيانات مستقلة، فلا تتداخل ملفاتها وتعديلاتها
+export const setSlot = (n) => { DB = n > 1 ? 'jadawel-' + n : 'jadawel'; };
 let dbp;
 function db() {
   if (!dbp) dbp = new Promise((res, rej) => {

@@ -1,0 +1,14 @@
+const { chromium } = require('playwright');
+let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) fails++;};
+(async () => { const b = await chromium.launch(); const ctx = await b.newContext({viewport:{width:900,height:700}});
+ const a = await ctx.newPage(); await a.goto('http://localhost:8765/'); await a.evaluate(()=>{indexedDB.deleteDatabase('jadawel');indexedDB.deleteDatabase('jadawel-2');}); await a.reload(); await a.waitForFunction(()=>app.slot);
+ const c = await ctx.newPage(); await c.goto('http://localhost:8765/'); await c.waitForFunction(()=>app.slot);
+ check(await a.evaluate(()=>app.slot)===1 && await c.evaluate(()=>app.slot)===2,'النافذتان تحصلان على رقمين مختلفين');
+ await a.click('.pane[data-pane="0"] .e-new'); await c.click('.pane[data-pane="0"] .e-new'); await a.waitForFunction(()=>app.panes[0].sh); await c.waitForFunction(()=>app.panes[0].sh);
+ await a.evaluate(()=>{const q=app.panes[0]; q.startEdit('A','enter'); q.commitEdit();}); await c.evaluate(()=>{const q=app.panes[0]; q.startEdit('B','enter'); q.commitEdit();});
+ await a.waitForTimeout(800);
+ check(await a.evaluate(()=>app.panes[0].sh.cells.get('0,0').v)==='A' && await c.evaluate(()=>app.panes[0].sh.cells.get('0,0').v)==='B','كل نافذة تحرر ملفها باستقلال');
+ await a.reload(); await a.waitForFunction(()=>app.slot&&app.wbs.length); await c.reload(); await c.waitForFunction(()=>app.slot&&app.wbs.length);
+ check(await a.evaluate(()=>app.wbs.length)===1 && await a.evaluate(()=>app.panes[0].sh.cells.get('0,0').v)==='A','النافذة 1 تستعيد ملفها فقط بعد إعادة التحميل');
+ check(await c.evaluate(()=>app.panes[0].sh.cells.get('0,0').v)==='B' && await c.evaluate(()=>app.slot)===2,'النافذة 2 تستعيد ملفها فقط');
+ await b.close(); console.log(fails?fails+' فشل':'نجح'); })();
