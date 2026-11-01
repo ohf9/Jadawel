@@ -364,7 +364,7 @@ const app = window.app = {
         wb.handle = handle; wb.overwriteOK = true; // المستخدم اختار هذا الملف بنفسه
       } else {
         savedAs = as ? base + ' - نسخة.' + fmt : suggested;
-        this.download(blob, savedAs); how = 'تم تنزيل الملف إلى مجلد التنزيلات';
+        await this.download(blob, savedAs); how = 'تم حفظ الملف';
       }
       if (fmt === 'xlsx') { await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); }
       else wb.sheets.forEach((s) => { s.edited = new Set(); });
@@ -382,7 +382,13 @@ const app = window.app = {
     const w = await handle.createWritable();
     try { await w.write(blob); await w.close(); } catch (e) { try { await w.abort(); } catch (_) {} throw e; }
   },
-  download(blob, name) {
+  async download(blob, name) {
+    const cap = window.Capacitor, fsx = cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem;
+    if (fsx) { // داخل تطبيق Android: تنزيلات المتصفح غير متاحة، فنكتب الملف في مجلد المستندات
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+      const r = await fsx.writeFile({ path: 'Jadawel/' + name, data, directory: 'DOCUMENTS', recursive: true });
+      this.toast('حُفظ في المستندات/Jadawel: ' + name, 5000); return r;
+    }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
   },

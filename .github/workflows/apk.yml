@@ -1,0 +1,51 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'capacitor.config.json', 'package.json', '.github/workflows/apk.yml', 'android-patch/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - name: Android customisation
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          # allow tablets of any orientation and DeX multi-window resizing
+          sed -i 's#<activity#<activity android:resizeableActivity="true" android:screenOrientation="unspecified"#' "$M"
+          sed -i 's#android:configChanges="[^"]*"#android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density|locale|layoutDirection"#' "$M"
+          # file associations: open .xlsx / .csv from the Android file manager
+          python3 - <<'PY'
+          p='android/app/src/main/AndroidManifest.xml'
+          s=open(p).read()
+          f='''
+              <intent-filter>
+                  <action android:name="android.intent.action.VIEW" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:scheme="content" android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                  <data android:mimeType="text/csv" />
+                  <data android:mimeType="text/comma-separated-values" />
+              </intent-filter>
+          '''
+          s=s.replace('</activity>', f+'</activity>',1)
+          open(p,'w').write(s)
+          PY
+      - run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Publish release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk jadawel.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest jadawel.apk --title "جداول (APK)" --notes "نزّل jadawel.apk وثبّته على التابلت" --latest

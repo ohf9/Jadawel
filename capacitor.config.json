@@ -1,0 +1,11 @@
+{
+  "appId": "com.jadawel.app",
+  "appName": "جداول",
+  "webDir": "docs",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

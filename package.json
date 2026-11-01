@@ -6,5 +6,13 @@
     "serve": "python3 -m http.server 8765 --directory docs",
     "test": "node test/fixtures.js && node test/e2e.js && node test/touch.js && node test/fsapi.js"
   },
-  "devDependencies": { "exceljs": "4.4.0", "playwright": "*" }
+  "devDependencies": {
+    "exceljs": "4.4.0",
+    "playwright": "*",
+    "@capacitor/cli": "6.1.2"
+  },
+  "dependencies": {
+    "@capacitor/core": "6.1.2",
+    "@capacitor/android": "6.1.2"
+  }
 }
