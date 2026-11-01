@@ -66,7 +66,7 @@ export class Pane {
     this.sh = this.wb.sheets[si];
     this.sel = v && v.sel ? { ...v.sel } : { ar: 0, ac: 0, fr: 0, fc: 0 };
     this.scroller.dir = this.sh.rtl ? 'rtl' : 'ltr';
-    this.autoH = null; this.axes(); this.block = null;
+    this.autoH = null; this.domH = null; this.axes(); this.block = null;
     this.scroller.scrollTop = v ? v.st || 0 : 0;
     this.setScrollX(v ? v.sl || 0 : 0);
     this.refreshHead(); this.renderTabs(); this.render(true); this.updateSel();
@@ -123,6 +123,7 @@ export class Pane {
       if (s && s.fit) need = Math.min(need, base);
       if (need > base + 1) { const last = rEnd; out.set(last, Math.max(out.get(last) || 0, (sh.rowH[last] || DEF_H) + (need - base))); }
     }
+    if (this.domH) for (const [r, v] of this.domH) out.set(r, Math.max(out.get(r) || 0, v));
     return out;
   }
   // يعيد حساب الارتفاع التلقائي بعد تغيير المحتوى أو التنسيق
@@ -185,7 +186,8 @@ export class Pane {
       if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
       else if (txt && s && s.fit) { st2 += this.shrink(txt, s, w, z); cls += ' fitchk'; }
       else if (txt && this.measure(txt, s, ((s && s.sz) || 11) * 4 / 3 * z) > w - 10 * z) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
-      html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" style="${st2}">${s && s.rot ? rotSpan(s.rot, esc(txt)) : `<span>${esc(txt)}</span>`}</div>`;
+      else if (txt && !(s && s.rot)) cls += ' cmpchk';
+      html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" data-rl="${m.r2}" style="${st2}">${s && s.rot ? rotSpan(s.rot, esc(txt)) : `<span>${esc(txt)}</span>`}</div>`;
     }
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
@@ -211,10 +213,10 @@ export class Pane {
           if (s.wrap) { st2 += 'white-space:normal;line-height:1.3;padding-top:2px;'; cls += ' wr'; }
         }
         let sEff = s;
-        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } else if (!num) cls += ' cmpchk'; }
+        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } else cls += ' cmpchk'; }
         if (fx && fx.css) st2 += fx.css;
         const inner = esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt);
-        html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" style="${st2}">${s && s.rot ? rotSpan(s.rot, inner) : inner}</div>`;
+        html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" data-rl="${r}" style="${st2}">${s && s.rot ? rotSpan(s.rot, inner) : inner}</div>`;
       }
     }
     const fl = sh.filter;
@@ -222,7 +224,7 @@ export class Pane {
       const hh = ry[fl.r1 + 1] - ry[fl.r1];
       for (let c = Math.max(c0, fl.c1); c <= Math.min(c1, fl.c2); c++) {
         const w = cx[c + 1] - cx[c]; if (w < 22 || hh < 14) continue;
-        html += `<button class="fbtn${fl.hide[c] && fl.hide[c].size ? ' on' : ''}" data-c="${c}" style="inset-inline-end:auto;inset-inline-start:${cx[c + 1] - 19}px;top:${ry[fl.r1] + Math.max(1, (hh - 17) / 2)}px" title="${tr('تصفية')}">▾</button>`;
+        html += `<button class="fbtn${fl.hide[c] && fl.hide[c].size ? ' on' : ''}" data-c="${c}" style="inset-inline-end:auto;inset-inline-start:${cx[c + 1] - 19}px;top:${ry[fl.r1 + 1] - 19}px" title="${tr('تصفية')}">▾</button>`;
       }
     }
     return html;
@@ -267,16 +269,30 @@ export class Pane {
     // نص أعرض من خليته ولا يمكنه التمدد: نضغطه أفقيًا (الارتفاع كما هو) بدل أن يُقطع
     const cj = [];
     for (const el of cm) {
-      const old = el.firstElementChild; if (old && old.classList.contains('cmp')) { el.innerHTML = old.innerHTML; }
-      const avail = el.clientWidth - 8; if (avail < 6) continue;
-      const rg = document.createRange(); rg.selectNodeContents(el); const need = rg.getBoundingClientRect().width;
-      if (need > avail + 1) cj.push([el, avail / need]);
+      const host = el.classList.contains('mg') && el.firstElementChild && el.firstElementChild.tagName === 'SPAN' && !el.firstElementChild.classList.contains('cmp') ? el.firstElementChild : el;
+      const old = host.firstElementChild; if (old && old.classList.contains('cmp')) { host.innerHTML = old.innerHTML; }
+      const avail = host.clientWidth - 8; if (avail < 6) continue;
+      const rg = document.createRange(); rg.selectNodeContents(host); const need = rg.getBoundingClientRect().width;
+      if (need > avail + 1) cj.push([host, avail / need, el]);
     }
-    for (const [el, k] of cj) {
-      const sx = Math.max(0.72, k), al = getComputedStyle(el).textAlign; const org = al === 'center' ? 'center' : al === 'left' ? 'left' : al === 'right' ? 'right' : (rtl ? 'right' : 'left');
+    for (const [el, k, outer] of cj) {
+      const sx = Math.max(0.72, k), al = getComputedStyle(outer).textAlign;
       const fk = k < 0.72 ? k / 0.72 : 1; // أضيق من 72%: نصغّر الخط قليلًا أيضًا كي لا يُقطع
-      el.innerHTML = `<span class="cmp" style="display:inline-block;transform-origin:${org};transform:scaleX(${sx.toFixed(3)})${fk < 1 ? `;font-size:${(fk * 100).toFixed(1)}%` : ''}">${el.innerHTML}</span>`;
+      el.innerHTML = `<span class="cmp" style="display:inline-block;transform-origin:left top;transform:scaleX(${sx.toFixed(3)})${fk < 1 ? `;font-size:${(fk * 100).toFixed(1)}%` : ''}">${el.innerHTML}</span>`;
+      // المحاذاة الفعلية: نقيس موضع النص بعد الضغط ونزيحه إلى حيث تضعه المحاذاة (وسط/بداية/نهاية)
+      const sp = el.firstElementChild, a = sp.getBoundingClientRect(), c = el.getBoundingClientRect();
+      const rtlCell = getComputedStyle(el).direction === 'rtl'; const side = al === 'center' ? 'c' : al === 'left' ? 'l' : al === 'right' ? 'r' : (rtlCell ? 'r' : 'l');
+      const want = side === 'c' ? c.left + (c.width - a.width) / 2 : side === 'l' ? c.left + 4 : c.right - 4 - a.width;
+      sp.style.transform = `translateX(${(want - a.left).toFixed(1)}px) ` + sp.style.transform;
     }
+    // نص ملتفّ ما زال أطول من خليته (قياس المتصفح الحقيقي): نكبّر الصف بدل أن يُقطع
+    const z = this.z || 1; let grew = false; this.domH = this.domH || new Map();
+    for (const el of root.querySelectorAll('.wr[data-rl]')) {
+      const rg = document.createRange(); rg.selectNodeContents(el); const ex = rg.getBoundingClientRect().height - el.clientHeight + 4; if (ex <= 1) continue; // قياس حقيقي (scrollHeight لا يحسب الفائض للأعلى)
+      const r = +el.dataset.rl, cur = Math.max(this.sh.rowH[r] || DEF_H, (this.autoH && this.autoH.get(r)) || 0, this.domH.get(r) || 0), nv = cur + ex / z + 2;
+      if (nv > cur + 0.5) { this.domH.set(r, nv); grew = true; }
+    }
+    if (grew && !this._rg) { this._rg = true; requestAnimationFrame(() => { this._rg = false; this.autoH = null; this.axes(); this.block = null; this.render(true); this.updateSel(); }); }
   }
   // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
   measure(txt, s, px) {

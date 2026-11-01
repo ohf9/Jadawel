@@ -563,21 +563,27 @@ export function install(app) {
       const f = p.sh.filter; const sh = p.sh;
       this.structOp(p, (s) => {
         const hr = s.hidRows = new Set(s.hidRows || []); for (const r of f.rows) hr.delete(r); f.rows = new Set();
-        const act = Object.entries(f.hide).filter(([, v]) => v.size);
+        const act = Object.entries(f.hide).filter(([, v]) => v.size); const col = Object.entries(f.color || {}).filter(([, v]) => v);
         for (let r = f.r1 + 1; r <= f.r2; r++) {
-          for (const [c, set] of act) { const x = s.cells.get(key(r, +c)); if (set.has(x ? displayText(x) : '')) { f.rows.add(r); hr.add(r); break; } }
+          let hide = false;
+          for (const [c, set] of act) { const x = s.cells.get(key(r, +c)); if (set.has(x ? displayText(x) : '')) { hide = true; break; } }
+          if (!hide) for (const [c, fill] of col) { const x = s.cells.get(key(r, +c)); if (((x && x.s && x.s.fill) || '') !== (fill === 'none' ? '' : fill)) { hide = true; break; } }
+          if (hide) { f.rows.add(r); hr.add(r); }
         }
       }, { hid: 1 });
     },
     filterMenu(p, c, anchor) {
       const sh = p.sh, f = sh.filter; if (!f) return;
-      const counts = new Map(); for (let r = f.r1 + 1; r <= f.r2; r++) { const x = sh.cells.get(key(r, c)); const t = x ? displayText(x) : ''; counts.set(t, (counts.get(t) || 0) + 1); }
-      const vals = [...counts.keys()].sort((a, b) => this.cmpVals(a, b, 1));
+      const counts = new Map(), fills = new Map(); for (let r = f.r1 + 1; r <= f.r2; r++) { const x = sh.cells.get(key(r, c)); const t = x ? displayText(x) : ''; counts.set(t, (counts.get(t) || 0) + 1); const fl = (x && x.s && x.s.fill) || 'none'; fills.set(fl, (fills.get(fl) || 0) + 1); }
+      const vals = [...counts.keys()].sort((a, b) => (a === '' ? -1 : b === '' ? 1 : this.cmpVals(a, b, 1))); // الفارغة أولًا مثل Excel
       const hid = new Set((f.hide[c] && [...f.hide[c]]) || []);
+      const SV = (d) => `<svg viewBox="0 0 24 24">${d}</svg>`;
+      const swatches = fills.size > 1 ? `<div class="fh">${tr('تصفية حسب لون الخلية')}</div><div class="fsw">${[...fills.keys()].map((k) => `<button type="button" data-fill="${esc(k)}" class="${(f.color || {})[c] === k ? 'on' : ''}" title="${k === 'none' ? tr('بلا تعبئة') : k}" style="${k === 'none' ? 'background:#fff' : 'background:' + k}"></button>`).join('')}</div>` : '';
       const el = document.createElement('div'); el.className = 'menu-filter';
-      el.innerHTML = `<button class="it" data-s="asc"><span class="nl">${tr('ترتيب من أ إلى ي')}</span></button><button class="it" data-s="desc"><span class="nl">${tr('ترتيب من ي إلى أ')}</span></button><div class="sep"></div>
-        <input class="fsearch" placeholder="${tr('بحث…')}" aria-label="${tr('بحث')}"><label class="it fl"><input type="checkbox" class="fall"><span class="nl">${tr('(تحديد الكل)')}</span></label><div class="flist">${vals.map((v) => `<label class="it fl"><input type="checkbox" class="fv" data-v="${esc(v)}"${hid.has(v) ? '' : ' checked'}><span class="nl">${v === '' ? tr('(فارغ)') : esc(v)}</span><span class="ns">${counts.get(v)}</span></label>`).join('')}</div>
-        <div class="fbtns"><button class="fok primary">${tr('موافق')}</button><button class="fclr">${tr('مسح عن هذا العمود')}</button></div>`;
+      el.innerHTML = `<div class="fh fhead">${tr('الترتيب والتصفية')}</div>
+        <button class="it fs" data-s="asc">${SV('<path d="M6 4v14M3 15l3 3 3-3"/><path d="M13 5h3M13 9h5M13 13h7"/>')}<span class="nl">${tr('ترتيب من الأصغر إلى الأكبر')}</span></button><button class="it fs" data-s="desc">${SV('<path d="M6 4v14M3 15l3 3 3-3"/><path d="M13 13h3M13 9h5M13 5h7"/>')}<span class="nl">${tr('ترتيب من الأكبر إلى الأصغر')}</span></button>${swatches}
+        <div class="sep"></div><input class="fsearch" placeholder="${tr('بحث…')}" aria-label="${tr('بحث')}"><label class="it fl fall-l"><input type="checkbox" class="fall"><span class="nl">${tr('تحديد الكل')}</span></label><div class="flist">${vals.map((v) => `<label class="it fl"><input type="checkbox" class="fv" data-v="${esc(v)}"${hid.has(v) ? '' : ' checked'}><span class="nl">${v === '' ? tr('(الفارغة)') : esc(v)}</span></label>`).join('')}</div>
+        <div class="fbtns"><button class="fok primary">${tr('موافق')}</button><button class="fclr">${tr('مسح الفلتر')}</button></div>`;
       const o = openPopover(anchor, el, { cls: 'menu-filter' }); if (!o) return;
       const all = el.querySelector('.fall'), upd = () => { const bx = [...el.querySelectorAll('.fv')].filter((b) => !b.closest('.fl').hidden); all.checked = bx.every((b) => b.checked); };
       upd();
@@ -585,9 +591,10 @@ export function install(app) {
       el.querySelector('.flist').addEventListener('change', upd);
       el.querySelector('.fsearch').addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); el.querySelectorAll('.flist .fl').forEach((l) => { l.hidden = q && !l.textContent.toLowerCase().includes(q); }); upd(); });
       el.addEventListener('click', (e) => {
-        const s = e.target.closest('[data-s]'); if (s) { closePopover(); const rr = { ...f }; this.doSort(p, { r1: f.r1, r2: f.r2, c1: f.c1, c2: f.c2 }, true, [{ c, dir: s.dataset.s === 'asc' ? 1 : -1 }]); return; }
+        const s = e.target.closest('[data-s]'); if (s) { closePopover(); this.doSort(p, { r1: f.r1, r2: f.r2, c1: f.c1, c2: f.c2 }, true, [{ c, dir: s.dataset.s === 'asc' ? 1 : -1 }]); return; }
+        const sw = e.target.closest('[data-fill]'); if (sw) { closePopover(); f.color = f.color || {}; f.color[c] = f.color[c] === sw.dataset.fill ? null : sw.dataset.fill; this.applyFilter(p); return; }
         if (e.target.closest('.fok')) { closePopover(); const h = new Set(); el.querySelectorAll('.fv').forEach((b) => { if (!b.checked) h.add(b.dataset.v); }); f.hide[c] = h; this.applyFilter(p); }
-        if (e.target.closest('.fclr')) { closePopover(); delete f.hide[c]; this.applyFilter(p); }
+        if (e.target.closest('.fclr')) { closePopover(); delete f.hide[c]; if (f.color) f.color[c] = null; this.applyFilter(p); }
       });
     },
 

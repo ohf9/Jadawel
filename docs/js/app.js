@@ -1081,6 +1081,7 @@ installFreeze(Pane, app);
 installReview(app, Pane);
 installPics(Pane, app);
 installDV(Pane, app);
+{ let t = null; if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { clearTimeout(t); t = setTimeout(() => app.panes.forEach((p) => { if (p.sh) { p.autoH = null; p.axes(); p.block = null; p.render(true); p.updateSel(); } }), 80); }); }
 installCF(app);
 installPivot(app);
 app.init();
