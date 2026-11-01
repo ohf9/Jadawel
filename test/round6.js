@@ -20,7 +20,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   check(await p.evaluate(() => document.querySelector('.pane.active .editor').inputMode) !== 'text' || true, 'المحرر لا يفتح كيبورد النظام');
   // شارة غير مدعوم
   await p.evaluate(() => { const P = app.pane(); P.wb._unsup = new Set(['FILTER']); P.refreshHead(); });
-  check(await p.isVisible('.pane.active .warn'), 'الشارة ظاهرة'); await p.click('.pane.active .warn'); await p.waitForSelector('#dialog[open]'); check((await p.textContent('#dialog .body')).includes('FILTER'), 'شرح الشارة يذكر الدالة'); await p.click('#dialog .btns button:first-child');
+  check(!(await p.isVisible('.pane.active .warn')), 'لا تظهر شارة الدوال غير المدعومة (تحتفظ بنتائجها المخزنة)');
   // الإنجليزية
   await p.evaluate(() => app.applyLang('en')); await p.waitForTimeout(200);
   const tabs = await p.$$eval('.rtabs [data-rt]', (a) => a.map((x) => x.textContent.trim())); check(tabs.join() === 'File,Home,Insert,Draw,Formulas,Data,Review,View', 'التبويبات بالإنجليزية ' + tabs);

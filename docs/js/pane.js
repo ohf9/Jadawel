@@ -74,7 +74,7 @@ export class Pane {
   refreshHead() {
     if (!this.wb) return;
     this.title.textContent = this.wb.name + (this.wb.dirty ? ' •' : '');
-    const un = this.wb._unsup && this.wb._unsup.size && !this.wb._unsupHide ? [...this.wb._unsup].slice(0, 4).join(', ') : '';
+    const un = ''; // لا نزعج المستخدم: الدوال غير المدعومة تحتفظ بنتائجها المخزنة في الملف
     this.warn.style.display = un ? '' : 'none';
     if (un) { this.warn.textContent = 'ⓘ ' + un; this.warn.title = tr('اضغط للتفاصيل'); }
     this.title.title = tr(this.wb.dirty ? 'توجد تعديلات غير محفوظة (محفوظة تلقائيًا للاستعادة)' : 'لا توجد تعديلات غير محفوظة');
@@ -211,7 +211,7 @@ export class Pane {
           if (s.wrap) { st2 += 'white-space:normal;line-height:1.3;padding-top:2px;'; cls += ' wr'; }
         }
         let sEff = s;
-        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } }
+        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } else if (!num) cls += ' cmpchk'; }
         if (fx && fx.css) st2 += fx.css;
         const inner = esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt);
         html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" style="${st2}">${s && s.rot ? rotSpan(s.rot, inner) : inner}</div>`;
@@ -254,8 +254,9 @@ export class Pane {
   }
   // قياس حقيقي من المتصفح: أي نص ما زال أعرض من خليته (اختلاف الخط عن القياس التقريبي) يُصغَّر ليتسع
   fitPass(root) {
-    const els = [...root.querySelectorAll('.fitchk')]; if (!els.length) return;
-    const jobs = [];
+    const els = [...root.querySelectorAll('.fitchk')]; const cm = [...root.querySelectorAll('.cmpchk')];
+    if (!els.length && !cm.length) return;
+    const jobs = [], rtl = !!(this.sh && this.sh.rtl);
     for (const el of els) {
       const t = el.firstElementChild && el.firstElementChild.tagName === 'SPAN' ? el.firstElementChild : null;
       const avail = el.clientWidth - 6; if (avail < 6) continue;
@@ -263,6 +264,19 @@ export class Pane {
       if (need > avail + 1) jobs.push([el, avail / need]);
     }
     for (const [el, k] of jobs) { const fs = parseFloat(getComputedStyle(el).fontSize) || 14; el.style.fontSize = Math.max(5, fs * k * 0.97).toFixed(2) + 'px'; }
+    // نص أعرض من خليته ولا يمكنه التمدد: نضغطه أفقيًا (الارتفاع كما هو) بدل أن يُقطع
+    const cj = [];
+    for (const el of cm) {
+      const old = el.firstElementChild; if (old && old.classList.contains('cmp')) { el.innerHTML = old.innerHTML; }
+      const avail = el.clientWidth - 8; if (avail < 6) continue;
+      const rg = document.createRange(); rg.selectNodeContents(el); const need = rg.getBoundingClientRect().width;
+      if (need > avail + 1) cj.push([el, avail / need]);
+    }
+    for (const [el, k] of cj) {
+      const sx = Math.max(0.72, k), al = getComputedStyle(el).textAlign; const org = al === 'center' ? 'center' : al === 'left' ? 'left' : al === 'right' ? 'right' : (rtl ? 'right' : 'left');
+      const fk = k < 0.72 ? k / 0.72 : 1; // أضيق من 72%: نصغّر الخط قليلًا أيضًا كي لا يُقطع
+      el.innerHTML = `<span class="cmp" style="display:inline-block;transform-origin:${org};transform:scaleX(${sx.toFixed(3)})${fk < 1 ? `;font-size:${(fk * 100).toFixed(1)}%` : ''}">${el.innerHTML}</span>`;
+    }
   }
   // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
   measure(txt, s, px) {
@@ -389,6 +403,8 @@ export class Pane {
     ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
     ed.style.fontFamily = st.font ? fontCss(st.font) : ''; ed.style.fontSize = st.sz ? `calc(${st.sz * 4 / 3}px * var(--z,1))` : '';
     ed.style.fontWeight = st.b ? '700' : ''; ed.style.fontStyle = st.i ? 'italic' : '';
+    // نفس لون الخلية وتعبئتها، كي لا يختفي النص الأبيض على الخلفية البنفسجية داخل المحرر
+    ed.style.background = st.fill || ''; ed.style.color = st.color || '';
     // الموضع بخصائص فيزيائية كي لا يتأثر بتغيّر اتجاه النص داخل المحرر
     const rtl = this.sh.rtl, x0 = this.colX[s.ac];
     ed.style.insetInlineStart = 'auto'; ed.style.left = rtl ? 'auto' : x0 + 'px'; ed.style.right = rtl ? x0 + 'px' : 'auto';
