@@ -12,7 +12,7 @@ let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) f
  await p.touchscreen.tap(a.x,a.y); await p.waitForTimeout(60); await p.touchscreen.tap(a.x,a.y); await p.waitForTimeout(200);
  check(await p.evaluate(()=>!!app.panes[0].editing && document.activeElement.classList.contains('editor')), 'نقرتان تفتحان التحرير (تظهر لوحة المفاتيح)');
  await p.keyboard.type('Cumin'); await p.keyboard.press('Enter');
-check(await p.evaluate(()=>app.panes[0].sh.cells.get('2,1').v)==='SaffronCumin', 'الكتابة بعد النقر المزدوج (تُضاف للنص كما في Excel)');
+check(await p.evaluate(()=>app.panes[0].sh.cells.get('2,1').v)==='Cumin', 'الكتابة بعد النقرتين تستبدل القيمة');
  // ضغطة مطولة ثم سحب = تحديد نطاق
  a = await pt(0,1,0); let b2 = await pt(0,3,2);
  await touch('touchStart', a.x, a.y); await p.waitForTimeout(600); await touch('touchMove', (a.x+b2.x)/2, (a.y+b2.y)/2); await touch('touchMove', b2.x, b2.y); await touch('touchEnd');
@@ -21,7 +21,7 @@ check(await p.evaluate(()=>app.panes[0].sh.cells.get('2,1').v)==='SaffronCumin',
  a = await pt(0,1,0); const t = await pt(1,7,0);
  await touch('touchStart', a.x, a.y); await p.waitForTimeout(600); for (let i=1;i<=8;i++) await touch('touchMove', a.x+(t.x-a.x)*i/8, a.y+(t.y-a.y)*i/8); await touch('touchEnd');
  await p.waitForTimeout(200);
- check(await p.evaluate(()=>{const s=app.panes[1].sh.cells; return s.get('7,0').v==='A-1' && s.get('8,1').v==='SaffronCumin' && s.get('9,2').v===250;}), 'سحب النطاق باللمس إلى الملف الثاني');
+ check(await p.evaluate(()=>{const s=app.panes[1].sh.cells; return s.get('7,0').v==='A-1' && s.get('8,1').v==='Cumin' && s.get('9,2').v===250;}), 'سحب النطاق باللمس إلى الملف الثاني');
  // تمرير عادي لا يحدد
  const st0 = await p.evaluate(()=>app.panes[1].scroller.scrollTop);
  a = await pt(1,12,1); await touch('touchStart', a.x, a.y); for (let i=1;i<=6;i++) await touch('touchMove', a.x, a.y-40*i); await touch('touchEnd'); await p.waitForTimeout(300);

@@ -529,18 +529,23 @@ export class Pane {
       else if (t.mode === 'sel' && !t.dragMoved && settings.miniBar !== false) this.app.showMini(this);
       else if (t.mode === 'none' && !t.moved) {
         const { r, c } = t.h; const now = Date.now();
-        const third = !!(lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350 && lastTap.n === 2);
-        // الضغطة الثالثة: لا نمنع حدث click، لأن أندرويد لا يُظهر كيبورد الجهاز إلا من click حقيقي
-        if (third) { const go = () => { document.removeEventListener('click', go, true); clearTimeout(tm); if (this.app.openSysKeyboard) this.app.openSysKeyboard(this); }; const tm = setTimeout(go, 450); document.addEventListener('click', go, true); }
+        const same = !!(lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350);
+        const n = same ? Math.min(3, (lastTap.n || 1) + 1) : 1;
+        // الضغطة الثانية والثالثة: لا نمنع حدث click، لأن أندرويد لا يُظهر كيبورد الجهاز إلا من click حقيقي
+        if (n >= 2) { const go = () => { document.removeEventListener('click', go, true); clearTimeout(tm); if (this.app.openSysKeyboard) this.app.openSysKeyboard(this); }; const tm = setTimeout(go, 450); document.addEventListener('click', go, true); }
         else e.preventDefault();
-        if (this.editing && !third) this.commitEdit();
-        if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) {
-          clearTimeout(lastTap.mt); const n = (lastTap.n || 1) + 1;
-          if (n === 2) { this.select(r, c, r, c, false); this.startEdit(); const kp = this.app.kpActive && this.app.kpActive(); if (kp && this.editing) { this.editor.select(); } lastTap = { r, c, t: now, n }; }
-          else { // الضغطة الثالثة: كيبورد الجهاز الكامل
+        if (this.editing && n < 3) this.commitEdit();
+        if (same) {
+          clearTimeout(lastTap.mt);
+          if (n === 2) { // الضغطة الثانية: تعديل القيمة بكيبورد الجهاز
+            this.select(r, c, r, c, false); const cell = this.sh.cells.get(key(r, c));
+            this.startEdit(cell ? displayText(cell) : ''); if (this.editing) this.editor.select();
+          } else { // الضغطة الثالثة: الفورميلا
             if (!this.editing) { this.select(r, c, r, c, false); this.startEdit(); }
-            lastTap = null;
+            const cell = this.sh.cells.get(key(r, c)); const raw = cell ? rawText(cell) : '';
+            if (this.editing) { this.editor.value = raw; this.formula.value = raw; this.fitEditor(); const L = raw.length; this.editor.setSelectionRange(L, L); }
           }
+          lastTap = n === 3 ? null : { r, c, t: now, n };
         }
         else {
           const was = this.inSel(r, c) || (this.sel.ar === r && this.sel.ac === c && this.sel.fr === r && this.sel.fc === c);
