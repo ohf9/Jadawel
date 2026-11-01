@@ -1,4 +1,5 @@
 // لوحة عرض ملف واحد: شبكة خلايا افتراضية + شريط صيغ + تبويبات الأوراق
+import { tr } from './i18n.js';
 import { key, a1, colName, rawText, displayText, isNumCell, parseInput, parseRange, esc } from './util.js';
 
 export const HDR_W = 46, HDR_H = 24, DEF_W = 96, DEF_H = 26;
@@ -26,7 +27,7 @@ export class Pane {
           <div class="colhdr"><div class="corner" title="تحديد الكل"></div><div class="colcells"></div></div>
           <div class="rowhdr"></div>
           <div class="layer"><div class="lines"></div><div class="cells"></div>
-            <div class="sel"></div><div class="act"></div><div class="marq"></div><div class="drop"></div>
+            <div class="sel"></div><div class="act"></div><div class="marq"></div><div class="drop"></div><div class="fillbox"></div><div class="fillh" title="اسحب للتعبئة (نقرتان للتعبئة لأسفل)"></div>
             <input class="editor" spellcheck="false" dir="auto"></div>
         </div>
       </div>
@@ -37,7 +38,7 @@ export class Pane {
     const $ = (s) => el.querySelector(s);
     Object.assign(this, { title: $('.pane-title'), namebox: $('.namebox'), formula: $('.formula'), scroller: $('.scroller'), canvas: $('.canvas'),
       colcells: $('.colcells'), rowhdr: $('.rowhdr'), layer: $('.layer'), lines: $('.lines'), cells: $('.cells'), selEl: $('.sel'), actEl: $('.act'),
-      marqEl: $('.marq'), dropEl: $('.drop'), editor: $('.editor'), tabs: $('.sheet-tabs'), corner: $('.corner'), sink: $('.sink'), warn: $('.warn') });
+      marqEl: $('.marq'), dropEl: $('.drop'), editor: $('.editor'), tabs: $('.sheet-tabs'), corner: $('.corner'), sink: $('.sink'), warn: $('.warn'), fillh: $('.fillh'), fillbox: $('.fillbox') });
     this.bind();
   }
 
@@ -71,7 +72,7 @@ export class Pane {
     this.title.textContent = this.wb.name + (this.wb.dirty ? ' •' : '');
     const stale = this.wb.dirty && this.wb.sheets.some((sh) => { for (const c of sh.cells.values()) if (c.f != null) return true; return false; });
     this.warn.style.display = stale ? '' : 'none';
-    this.title.title = this.wb.dirty ? 'توجد تعديلات غير محفوظة (محفوظة تلقائيًا للاستعادة)' : 'لا توجد تعديلات غير محفوظة';
+    this.title.title = tr(this.wb.dirty ? 'توجد تعديلات غير محفوظة (محفوظة تلقائيًا للاستعادة)' : 'لا توجد تعديلات غير محفوظة');
   }
   renderTabs() {
     const si = this.wb.sheets.indexOf(this.sh);
@@ -173,6 +174,7 @@ export class Pane {
     this.box(this.selEl, g.r1, g.c1, g.r2, g.c2);
     this.selEl.classList.toggle('multi', g.r1 !== g.r2 || g.c1 !== g.c2);
     this.box(this.actEl, s.ar, s.ac, s.ar, s.ac);
+    this.fillh.style.cssText = this.editing ? 'display:none' : `display:block;inset-inline-start:${this.colX[g.c2 + 1] - 5}px;top:${this.rowY[g.r2 + 1] - 5}px`;
     this.namebox.value = g.r1 === g.r2 && g.c1 === g.c2 ? a1(s.ar, s.ac) : a1(g.r1, g.c1) + ':' + a1(g.r2, g.c2);
     if (!this.editing) this.formula.value = rawText(this.sh.cells.get(key(s.ar, s.ac)));
     this.renderHeaders();
@@ -221,6 +223,7 @@ export class Pane {
     const e = this.editing; if (!e) return false;
     this.editing = null;
     const text = fromFormula ? this.formula.value : this.editor.value;
+    if (document.activeElement === this.editor) this.sink.focus({ preventScroll: true });
     this.editor.style.display = 'none';
     if (text !== e.orig) {
       const old = this.sh.cells.get(key(e.r, e.c));
@@ -322,18 +325,44 @@ export class Pane {
     });
     this.layer.addEventListener('touchcancel', () => { if (t && t.mode === 'drag') this.app.dragEnd(true); t = null; });
 
-    // العناوين
+    // العناوين: تحديد الصفوف/الأعمدة، وتغيير الحجم بسحب الحافة (نقرتان = ملاءمة تلقائية)
+    const edge = (e, kind) => {
+      if (!this.sh) return null;
+      const rc = this.layer.getBoundingClientRect(), th = e.pointerType === 'touch' ? 12 : 4;
+      if (kind === 'col') {
+        const x = this.sh.rtl ? rc.right - e.clientX : e.clientX - rc.left, c = bsearch(this.colX, Math.max(0, x));
+        if (c > 0 && x - this.colX[c] <= th) return c - 1;
+        if (this.colX[c + 1] - x <= th) return c;
+      } else {
+        const y = e.clientY - rc.top, r = bsearch(this.rowY, Math.max(0, y));
+        if (r > 0 && y - this.rowY[r] <= th) return r - 1;
+        if (this.rowY[r + 1] - y <= th) return r;
+      }
+      return null;
+    };
     const hdr = (e, kind) => {
       if (!this.sh) return; e.preventDefault(); if (this.editing) this.commitEdit(); this.focus();
+      const ed = kind === 'all' ? null : edge(e, kind);
+      if (ed != null) return this.startResize(e, kind, ed);
       const h = this.hit(e.clientX, e.clientY);
       const R = this.sh.nrows - 1, C = this.sh.ncols - 1, s = this.sel;
-      if (kind === 'col') { if (e.shiftKey) this.select(0, s.ac, R, h.c, false); else this.select(0, h.c, R, h.c, false); this.sel.ar = this.sel.ar; }
+      if (kind === 'col') { if (e.shiftKey) this.select(0, s.ac, R, h.c, false); else this.select(0, h.c, R, h.c, false); }
       else if (kind === 'row') { if (e.shiftKey) this.select(s.ar, 0, h.r, C, false); else this.select(h.r, 0, h.r, C, false); }
       else this.select(0, 0, R, C, false);
     };
     this.colcells.addEventListener('pointerdown', (e) => hdr(e, 'col'));
     this.rowhdr.addEventListener('pointerdown', (e) => hdr(e, 'row'));
     this.corner.addEventListener('pointerdown', (e) => hdr(e, 'all'));
+    const hover = (el, kind) => el.addEventListener('pointermove', (e) => { if (e.buttons || !this.sh) return; el.style.cursor = edge(e, kind) != null ? (kind === 'col' ? 'col-resize' : 'row-resize') : ''; });
+    hover(this.colcells, 'col'); hover(this.rowhdr, 'row');
+    this.colcells.addEventListener('dblclick', (e) => { const c = edge(e, 'col'); if (c != null) this.autofit('col', c); });
+    this.rowhdr.addEventListener('dblclick', (e) => { const r = edge(e, 'row'); if (r != null) this.autofit('row', r); });
+
+    // مقبض التعبئة
+    const fh = this.fillh;
+    fh.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    fh.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.focus(); this.startFill(e); });
+    fh.addEventListener('dblclick', (e) => { e.stopPropagation(); this.app.fillDownToData(this); });
 
     // مستقبل لوحة المفاتيح: حقل مخفي لا يُظهر لوحة المفاتيح الافتراضية، ويلتقط الكتابة (بما فيها العربية) والنسخ واللصق
     this.sink.addEventListener('input', () => { const v = this.sink.value; this.sink.value = ''; if (v && this.sh && !this.editing) this.startEdit(v, 'enter'); });
@@ -397,6 +426,69 @@ export class Pane {
     this.el.querySelector('.e-open').addEventListener('click', () => this.app.openDialog(this.idx));
     this.el.querySelector('.dir-btn').addEventListener('click', () => this.app.toggleDir(this));
   }
+  // ---------- تغيير حجم الأعمدة والصفوف ----------
+  startResize(e, kind, idx) {
+    const sh = this.sh, g = this.range(); const col = kind === 'col';
+    const inSel = col ? (idx >= g.c1 && idx <= g.c2 && g.r1 === 0 && g.r2 >= sh.nrows - 1) : (idx >= g.r1 && idx <= g.r2 && g.c1 === 0 && g.c2 >= sh.ncols - 1);
+    const list = []; const a = inSel ? (col ? g.c1 : g.r1) : idx, b = inSel ? (col ? g.c2 : g.r2) : idx;
+    for (let i = a; i <= b; i++) list.push(i);
+    const map = col ? sh.colW : sh.rowH, def = col ? DEF_W : DEF_H;
+    const start = map[idx] || def, x0 = col ? e.clientX : e.clientY;
+    const tgt = e.currentTarget; tgt.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      let d = (col ? ev.clientX : ev.clientY) - x0; if (col && sh.rtl) d = -d;
+      const v = Math.max(col ? 18 : 12, Math.round(start + d));
+      list.forEach((i) => { map[i] = v; });
+      this.axes(); this.block = null; this.render(true); this.updateSel();
+    };
+    const up = () => {
+      tgt.removeEventListener('pointermove', move); tgt.removeEventListener('pointerup', up); tgt.removeEventListener('pointercancel', up);
+      this.app.dimsChanged(this, col ? 'col' : 'row', list);
+    };
+    tgt.addEventListener('pointermove', move); tgt.addEventListener('pointerup', up); tgt.addEventListener('pointercancel', up);
+  }
+  autofit(kind, idx) {
+    const sh = this.sh, g = this.range(); const col = kind === 'col';
+    const inSel = col ? (idx >= g.c1 && idx <= g.c2) : (idx >= g.r1 && idx <= g.r2);
+    const a = inSel ? (col ? g.c1 : g.r1) : idx, b = inSel ? (col ? g.c2 : g.r2) : idx, list = [];
+    for (let i = a; i <= b; i++) list.push(i);
+    const cv = this._cv || (this._cv = document.createElement('canvas').getContext('2d'));
+    cv.font = '14px "Segoe UI", Tahoma, sans-serif';
+    for (const i of list) {
+      if (!col) { sh.rowH[i] = DEF_H; continue; }
+      let w = 0;
+      for (const [k, cell] of sh.cells) { const [r, c] = k.split(',').map(Number); if (c !== i) continue; const t = displayText(cell); if (t) { cv.font = `${cell.s && cell.s.i ? 'italic ' : ''}${cell.s && cell.s.b ? 'bold ' : ''}14px "Segoe UI", Tahoma, sans-serif`; w = Math.max(w, cv.measureText(t).width); } }
+      sh.colW[i] = Math.max(40, Math.min(600, Math.ceil(w) + 16));
+    }
+    this.axes(); this.block = null; this.render(true); this.updateSel();
+    this.app.dimsChanged(this, kind, list);
+  }
+
+  // ---------- مقبض التعبئة ----------
+  startFill(e) {
+    const src = this.range(); const fh = this.fillh; fh.setPointerCapture(e.pointerId);
+    const st = { src, dir: null, target: null };
+    const move = (ev) => {
+      this.autoScroll(ev);
+      const h = this.hit(ev.clientX, ev.clientY);
+      const dr = h.r > src.r2 ? h.r - src.r2 : h.r < src.r1 ? h.r - src.r1 : 0;
+      const dc = h.c > src.c2 ? h.c - src.c2 : h.c < src.c1 ? h.c - src.c1 : 0;
+      st.dir = null; st.target = null;
+      if (dr || dc) {
+        if (Math.abs(dr) >= Math.abs(dc)) { st.dir = dr > 0 ? 'down' : 'up'; st.target = dr > 0 ? { r1: src.r2 + 1, r2: src.r2 + dr, c1: src.c1, c2: src.c2 } : { r1: src.r1 + dr, r2: src.r1 - 1, c1: src.c1, c2: src.c2 }; }
+        else { st.dir = dc > 0 ? 'right' : 'left'; st.target = dc > 0 ? { c1: src.c2 + 1, c2: src.c2 + dc, r1: src.r1, r2: src.r2 } : { c1: src.c1 + dc, c2: src.c1 - 1, r1: src.r1, r2: src.r2 }; }
+      }
+      if (st.target) { this.grow(st.target.r2 + 50, st.target.c2 + 5); const t = st.target; this.box(this.fillbox, Math.min(src.r1, t.r1), Math.min(src.c1, t.c1), Math.max(src.r2, t.r2), Math.max(src.c2, t.c2)); }
+      else this.fillbox.style.display = 'none';
+    };
+    const up = (ev) => {
+      fh.removeEventListener('pointermove', move); fh.removeEventListener('pointerup', up); fh.removeEventListener('pointercancel', up);
+      this.fillbox.style.display = 'none';
+      if (st.target && ev.type === 'pointerup') this.app.fill(this, src, st.target, st.dir, ev.ctrlKey || ev.metaKey);
+    };
+    fh.addEventListener('pointermove', move); fh.addEventListener('pointerup', up); fh.addEventListener('pointercancel', up);
+  }
+
   autoScroll(p) {
     const rc = this.scroller.getBoundingClientRect(), sc = this.scroller, m = 30;
     if (p.clientY > rc.bottom - m) sc.scrollTop += 20; else if (p.clientY < rc.top + HDR_H + m) sc.scrollTop -= 20;

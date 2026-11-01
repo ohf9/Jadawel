@@ -26,22 +26,21 @@ jobs:
           # allow tablets of any orientation and DeX multi-window resizing
           sed -i 's#<activity#<activity android:resizeableActivity="true" android:screenOrientation="unspecified"#' "$M"
           sed -i 's#android:configChanges="[^"]*"#android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density|locale|layoutDirection"#' "$M"
-          # file associations: open .xlsx / .csv from the Android file manager
+          cp android-patch/*.java android/app/src/main/java/com/jadawel/app/
+          # فتح ملفات Excel وCSV من مدير الملفات ومن "مشاركة"
           python3 - <<'PY'
           p='android/app/src/main/AndroidManifest.xml'
           s=open(p).read()
-          f='''
-              <intent-filter>
-                  <action android:name="android.intent.action.VIEW" />
-                  <category android:name="android.intent.category.DEFAULT" />
-                  <data android:scheme="content" android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-                  <data android:mimeType="text/csv" />
-                  <data android:mimeType="text/comma-separated-values" />
-              </intent-filter>
-          '''
+          mimes=['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel','application/vnd.ms-excel.sheet.macroEnabled.12','application/x-excel','application/excel','application/x-msexcel','text/csv','text/comma-separated-values','application/csv','text/tab-separated-values','application/vnd.oasis.opendocument.spreadsheet']
+          data=''.join('<data android:mimeType="%s" />' % m for m in mimes)
+          f=('<intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" />'+data+'</intent-filter>'
+             '<intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" />'+data+'</intent-filter>'
+             '<intent-filter><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" />'+data+'</intent-filter>')
           s=s.replace('</activity>', f+'</activity>',1)
           open(p,'w').write(s)
           PY
+      - name: Stable signing key (so updates install over the old app)
+        run: mkdir -p ~/.android && cp android-patch/debug.keystore ~/.android/debug.keystore
       - run: npx cap sync android
       - name: Build APK
         working-directory: android

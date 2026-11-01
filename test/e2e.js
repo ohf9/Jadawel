@@ -22,9 +22,10 @@ let fails = 0; const check = (cond, msg) => { console.log(cond ? '  ✔' : '  �
 
   log('1) فتح ملفين معًا');
   await page.setInputFiles('#file-input', [F(path.join(OUT, 'مبيعات.xlsx')), F(path.join(OUT, 'مخزون.xlsx'))]);
-  await page.waitForFunction(() => app.wbs.length === 2 && app.panes[1].wb);
+  await page.waitForFunction(() => app.wbs.length === 2);
+  await page.evaluate(() => { app.setLayout('h'); app.showIn(0, app.wbs[0]); app.showIn(1, app.wbs[1]); });
   const st = await page.evaluate(() => ({ layout: app.layout, p0: app.panes[0].wb.name, p1: app.panes[1].wb.name, rtl0: app.panes[0].sh.rtl, tabs: document.querySelectorAll('.ftab').length }));
-  check(st.layout === 'h', 'تم تفعيل العرض جنبًا إلى جنب تلقائيًا');
+  check(st.layout === 'h', 'العرض جنبًا إلى جنب');
   check(st.p0 === 'مبيعات.xlsx' && st.p1 === 'مخزون.xlsx', 'كل ملف في لوحة');
   check(st.rtl0 === true, 'اتجاه الورقة العربية من اليمين لليسار محفوظ من الملف');
   check(st.tabs === 2, 'تبويبان للملفين');

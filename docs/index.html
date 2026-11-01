@@ -11,43 +11,116 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<header class="toolbar" role="toolbar">
-  <span class="brand">جداول</span>
-  <div class="grp">
-    <button id="btn-win" title="افتح نافذة ثانية مستقلة من التطبيق (لـ DeX واللابتوب)">🗗 نافذة جديدة</button>
-    <button id="btn-new" title="مصنف جديد (Ctrl+Alt+N)">＋ جديد</button>
-    <button id="btn-open" title="فتح ملف أو أكثر (Ctrl+O)">📂 فتح</button>
-    <button id="btn-save" title="حفظ (Ctrl+S)">💾 حفظ</button>
-    <button id="btn-saveas" title="حفظ نسخة باسم آخر (F12)">حفظ باسم</button>
-  </div>
-  <div class="grp">
-    <button id="btn-undo" title="تراجع (Ctrl+Z)">↶ تراجع</button>
-    <button id="btn-redo" title="إعادة (Ctrl+Y)">↷ إعادة</button>
-  </div>
-  <div class="grp">
-    <button id="btn-cut" title="قص (Ctrl+X)">✂ قص</button>
-    <button id="btn-copy" title="نسخ (Ctrl+C)">⧉ نسخ</button>
-    <button id="btn-paste" title="لصق (Ctrl+V)">📋 لصق</button>
-  </div>
-  <div class="grp seg" aria-label="طريقة العرض">
-    <button data-layout-btn="single" class="on" title="ملف واحد">▭ ملف واحد</button>
-    <button data-layout-btn="h" title="ملفان جنبًا إلى جنب">◫ جنبًا إلى جنب</button>
-    <button data-layout-btn="v" title="ملفان فوق بعض (مناسب للوضع العمودي)">⬒ فوق بعض</button>
-    <button id="btn-second" title="اعرض الملف الحالي في اللوحة الأخرى للتحكم بورقتين منه معًا">⧉ ورقتان من نفس الملف</button>
-  </div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12 12v6M9 15h6"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+  <symbol id="i-saveas" viewBox="0 0 24 24"><path d="M5 3h11l3 3v5"/><path d="M5 3v18h7"/><path d="M8 3v6h8V3"/><path d="M14 21l1-4 5-5 2 2-5 5z"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/></symbol>
+  <symbol id="i-cut" viewBox="0 0 24 24"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8 16L19 3M16 16L5 3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 6L4 11l5 5"/><path d="M4 11h9a6 6 0 0 1 0 12h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 6l5 5-5 5"/><path d="M20 11h-9a6 6 0 0 0 0 12h3"/></symbol>
+  <symbol id="i-fill" viewBox="0 0 24 24"><path d="M4 12l8-8 8 8-8 8z"/><path d="M19 15c0 1.6 1.5 2.4 1.5 3.8a1.5 1.5 0 0 1-3 0c0-1.4 1.5-2.2 1.5-3.8z"/></symbol>
+  <symbol id="i-al" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
+  <symbol id="i-ac" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
+  <symbol id="i-ar" viewBox="0 0 24 24"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></symbol>
+  <symbol id="i-single" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></symbol>
+  <symbol id="i-h" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-v" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 12h16"/></symbol>
+  <symbol id="i-second" viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="11" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4"/></symbol>
+  <symbol id="i-win" viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="13" rx="2"/><path d="M14 3h7v7M21 3l-8 8"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></symbol>
+</defs></svg>
+
+<header class="titlebar">
+  <span class="brand"><svg class="logo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="#fff"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16" stroke="#1e6b41" stroke-width="1.6"/></svg>جداول</span>
+  <nav id="tabs" class="tabs" aria-label="الملفات المفتوحة"></nav>
+  <button id="btn-settings" class="tb-icon" title="الإعدادات"><svg><use href="#i-gear"/></svg></button>
 </header>
-<nav id="tabs" class="tabs" aria-label="الملفات المفتوحة"></nav>
-<main id="workspace" data-layout="single"></main>
-<div id="hint" class="hint" hidden>
-  <h1>جداول</h1>
-  <p>افتح ملفين أو أكثر (XLSX أو CSV) لعرضهما جنبًا إلى جنب، أو أنشئ مصنفًا جديدًا.</p>
-  <p class="small">يمكنك أيضًا سحب الملفات وإفلاتها هنا. تُحفظ تعديلاتك تلقائيًا على هذا الجهاز لاستعادتها بعد الإغلاق.</p>
+
+<div class="ribbon" role="toolbar">
+  <div class="rg"><div class="rg-body">
+    <button id="btn-new" class="rb big" title="مصنف جديد (Ctrl+N)"><svg><use href="#i-new"/></svg><span>جديد</span></button>
+    <button id="btn-open" class="rb big" title="فتح ملف أو أكثر (Ctrl+O)"><svg><use href="#i-open"/></svg><span>فتح</span></button>
+    <button id="btn-save" class="rb big" title="حفظ في نفس الملف (Ctrl+S)"><svg><use href="#i-save"/></svg><span>حفظ</span></button>
+    <button id="btn-saveas" class="rb big" title="حفظ نسخة باسم آخر (F12)"><svg><use href="#i-saveas"/></svg><span>حفظ باسم</span></button>
+  </div><div class="rg-label">ملف</div></div>
+
+  <div class="rg"><div class="rg-body">
+    <button id="btn-paste" class="rb big" title="لصق (Ctrl+V)"><svg><use href="#i-paste"/></svg><span>لصق</span></button>
+    <div class="col2">
+      <button id="btn-cut" class="rb sm" title="قص (Ctrl+X)"><svg><use href="#i-cut"/></svg><span>قص</span></button>
+      <button id="btn-copy" class="rb sm" title="نسخ (Ctrl+C)"><svg><use href="#i-copy"/></svg><span>نسخ</span></button>
+    </div>
+    <div class="col2">
+      <button id="btn-undo" class="rb sm" title="تراجع (Ctrl+Z)"><svg><use href="#i-undo"/></svg><span>تراجع</span></button>
+      <button id="btn-redo" class="rb sm" title="إعادة (Ctrl+Y)"><svg><use href="#i-redo"/></svg><span>إعادة</span></button>
+    </div>
+  </div><div class="rg-label">الحافظة والتحرير</div></div>
+
+  <div class="rg"><div class="rg-body">
+    <div class="col2">
+      <div class="row">
+        <button id="fm-b" class="rb icon txt" title="غامق (Ctrl+B)"><b>B</b></button>
+        <button id="fm-i" class="rb icon txt" title="مائل (Ctrl+I)"><i>I</i></button>
+        <button id="fm-u" class="rb icon txt" title="تسطير (Ctrl+U)"><u>U</u></button>
+      </div>
+      <div class="row">
+        <label class="rb icon txt clr" title="لون الخط"><b>A</b><i id="fm-color-bar" class="bar"></i><input type="color" id="fm-color" value="#c00000"></label>
+        <label class="rb icon clr" title="لون التعبئة"><svg><use href="#i-fill"/></svg><i id="fm-fill-bar" class="bar"></i><input type="color" id="fm-fill" value="#ffe699"></label>
+        <button id="fm-nofill" class="rb icon txt" title="بدون تعبئة">✕</button>
+      </div>
+    </div>
+  </div><div class="rg-label">الخط</div></div>
+
+  <div class="rg"><div class="rg-body">
+    <div class="col2">
+      <div class="row">
+        <button id="fm-al" class="rb icon" title="محاذاة لليسار"><svg><use href="#i-al"/></svg></button>
+        <button id="fm-ac" class="rb icon" title="توسيط"><svg><use href="#i-ac"/></svg></button>
+        <button id="fm-ar" class="rb icon" title="محاذاة لليمين"><svg><use href="#i-ar"/></svg></button>
+      </div>
+      <div class="row"><span class="mut">&nbsp;</span></div>
+    </div>
+  </div><div class="rg-label">المحاذاة</div></div>
+
+  <div class="rg"><div class="rg-body">
+    <div class="col2">
+      <select id="fm-nf" class="nf" title="تنسيق الأرقام"></select>
+      <div class="row">
+        <button id="fm-decm" class="rb icon txt ltr" title="تقليل الخانات العشرية">−.0</button>
+        <button id="fm-decp" class="rb icon txt ltr" title="زيادة الخانات العشرية">+.0</button>
+      </div>
+    </div>
+  </div><div class="rg-label">الأرقام</div></div>
+
+  <div class="rg"><div class="rg-body">
+    <button data-layout-btn="single" class="rb big on" title="ملف واحد"><svg><use href="#i-single"/></svg><span>لوحة واحدة</span></button>
+    <button data-layout-btn="h" class="rb big" title="لوحتان جنبًا إلى جنب"><svg><use href="#i-h"/></svg><span>جنبًا إلى جنب</span></button>
+    <button data-layout-btn="v" class="rb big" title="لوحتان فوق بعض"><svg><use href="#i-v"/></svg><span>فوق بعض</span></button>
+    <button id="btn-second" class="rb big" title="اعرض الملف الحالي في لوحتين لتتحكم بورقتين منه معًا"><svg><use href="#i-second"/></svg><span>ورقتان معًا</span></button>
+    <button id="btn-win" class="rb big" title="افتح نافذة مستقلة جديدة من التطبيق"><svg><use href="#i-win"/></svg><span>نافذة جديدة</span></button>
+  </div><div class="rg-label">العرض</div></div>
 </div>
+
+<main id="workspace" data-layout="single"></main>
+<div id="hint" class="hint" hidden></div>
 <footer class="statusbar"><span id="autosave"></span><span id="status"></span></footer>
-<input type="file" id="file-input" multiple accept=".xlsx,.xlsm,.csv,.tsv,.txt,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
+<input type="file" id="file-input" multiple accept=".xlsx,.xlsm,.xls,.ods,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
 <dialog id="dialog"><h2></h2><div class="body"></div><input type="text" dir="auto"><div class="btns"></div></dialog>
+<dialog id="settings">
+  <h2>الإعدادات</h2>
+  <label class="field"><span>لغة الواجهة</span>
+    <select id="set-lang"><option value="ar">العربية</option><option value="en">English</option></select></label>
+  <label class="field"><span>اتجاه الأوراق الجديدة</span>
+    <select id="set-dir"><option value="rtl">من اليمين إلى اليسار</option><option value="ltr">من اليسار إلى اليمين</option></select></label>
+  <p class="note">تغيير اللغة يعيد تحميل التطبيق، وتبقى ملفاتك وتعديلاتك كما هي.</p>
+  <div class="btns"><button id="set-save" class="primary">حفظ</button><button id="set-cancel">إلغاء</button></div>
+</dialog>
 <div id="toasts"></div>
 <script src="vendor/exceljs.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

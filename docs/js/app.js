@@ -1,8 +1,11 @@
 // مساحة العمل: الملفات المفتوحة، اللوحتان، الحافظة، السحب بين الملفات، الحفظ والاستعادة
 import { key, unkey, a1, toTSV, parseDelimited, parseInput, shiftFormula, esc, isNumCell } from './util.js';
 import { Pane } from './pane.js';
-import { newWorkbook, newSheet, readXlsx, readCsv, writeXlsx, writeCsv, rebaseAfterSave } from './io.js';
+import { newWorkbook, newSheet, readXlsx, readSheetJS, readCsv, writeXlsx, writeCsv, rebaseAfterSave } from './io.js';
 import * as store from './store.js';
+import { computeFill } from './fill.js';
+import { settings, saveSettings, tr, lang, translateDom } from './i18n.js';
+import { isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
 async function claimSlot() {
   if (!navigator.locks) return 1;
@@ -13,6 +16,7 @@ async function claimSlot() {
   return 1;
 }
 
+const NF_PRESETS = [['General', 'عام'], ['0', 'رقم'], ['0.00', 'رقم بخانتين'], ['#,##0', 'آلاف'], ['#,##0.00', 'آلاف بخانتين'], ['0%', 'نسبة %'], ['0.00%', 'نسبة بخانتين'], ['$#,##0.00', 'دولار'], ['#,##0.00 "ر.س"', 'ريال سعودي'], ['yyyy-mm-dd', 'تاريخ'], ['dd/mm/yyyy', 'تاريخ يوم/شهر/سنة'], ['hh:mm', 'وقت'], ['@', 'نص']];
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const FS = 'showOpenFilePicker' in window && !window.__noFS;
 const $ = (s) => document.querySelector(s);
@@ -23,12 +27,14 @@ const app = window.app = {
   init() {
     const ws = $('#workspace');
     this.panes = [new Pane(this, 0, ws), new Pane(this, 1, ws)];
+    this.panes.forEach((q) => translateDom(q.el));
     const div = document.createElement('div'); div.className = 'divider'; div.title = 'اسحب لتغيير حجم اللوحتين';
     ws.insertBefore(div, this.panes[1].el); this.divider = div;
     this.panes.forEach((p) => p.show(null));
+    translateDom(document.body);
     this.bindUI(); this.bindDivider();
     this.setActive(0);
-    claimSlot().then((n) => { this.slot = n; store.setSlot(n); if (n > 1) document.body.dataset.slot = n; return this.restore(); }).then(() => { if (!this.wbs.length) this.setLayout(window.innerWidth < 700 ? 'v' : 'h'); this.handleLaunch(); });
+    claimSlot().then((n) => { this.slot = n; store.setSlot(n); if (n > 1) document.body.dataset.slot = n; return this.restore(); }).then(() => { this.handleLaunch(); });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
   },
@@ -64,8 +70,8 @@ const app = window.app = {
       const where = this.panes.filter((p) => p.wb === w && (p.idx === 0 || this.layout !== 'single')).map((p) => p.idx + 1);
       const on = this.pane().wb === w;
       return `<div class="ftab${on ? ' on' : ''}${where.length ? ' shown' : ''}" data-id="${w.id}" title="${esc(w.name)}">
-        ${where.length ? `<span class="badge">${where.join('،')}</span>` : ''}<span class="fname">${esc(w.name)}</span>${w.dirty ? '<span class="dot" title="غير محفوظ">●</span>' : ''}
-        <button class="x" data-close="${w.id}" title="إغلاق">×</button></div>`;
+        ${where.length ? `<span class="badge">${where.join('،')}</span>` : ''}<span class="fname">${esc(w.name)}</span>${w.dirty ? `<span class="dot" title="${tr('غير محفوظ')}">●</span>` : ''}
+        <button class="x" data-close="${w.id}" title="${tr('إغلاق')}">×</button></div>`;
     }).join('');
     
     document.title = (this.pane().wb ? this.pane().wb.name + ' — ' : '') + 'جداول' + (this.slot > 1 ? ' (نافذة ' + this.slot + ')' : '');
@@ -206,7 +212,7 @@ const app = window.app = {
     const g = src.range();
     this.drag = { src, data: { grid: d.grid, src: { ...d, wbId: src.wb.id, sheetId: src.sh.id, cut: false } }, off: { r: h.r - g.r1, c: h.c - g.c1 }, target: null };
     const gh = this.ghost = document.createElement('div'); gh.className = 'ghost';
-    gh.textContent = `نسخ ${d.grid.length}×${d.grid[0].length} خلية — أفلِت في أي ملف`;
+    gh.textContent = tr(`نسخ ${d.grid.length}×${d.grid[0].length} خلية — أفلِت في أي ملف`);
     document.body.appendChild(gh); document.body.classList.add('dragging');
     this.dragMove(e.clientX, e.clientY);
   },
@@ -248,11 +254,75 @@ const app = window.app = {
     this.toast(wb.sheets.length > 1 ? 'اللوحتان تعرضان ورقتين من نفس الملف، وأي تعديل يظهر في الاثنتين' : 'اللوحتان تعرضان نفس الورقة. أضف ورقة جديدة لتتحكم بورقتين');
   },
 
+  // ---------- التعبئة التلقائية ----------
+  fill(p, src, target, dir, copy) {
+    const ch = computeFill(src, target, (r, c) => p.sh.cells.get(key(r, c)), dir, copy);
+    if (!ch.length) return;
+    this.applyChanges(p.wb, p.sh, ch);
+    p.select(Math.min(src.r1, target.r1), Math.min(src.c1, target.c1), Math.max(src.r2, target.r2), Math.max(src.c2, target.c2));
+  },
+  fillDownToData(p) {
+    const src = p.range(); const has = (r, c) => c >= 0 && p.sh.cells.has(key(r, c));
+    let nc = src.c1 - 1; if (!has(src.r2 + 1, nc)) nc = src.c2 + 1;
+    let r = src.r2 + 1; while (has(r, nc)) r++;
+    if (r === src.r2 + 1) return this.toast('لا توجد بيانات مجاورة لتحديد نهاية التعبئة');
+    this.fill(p, src, { r1: src.r2 + 1, r2: r - 1, c1: src.c1, c2: src.c2 }, 'down', false);
+  },
+  fillEdge(dir) { // Ctrl+D / Ctrl+R
+    const p = this.pane(); if (!p.sh) return; const g = p.range();
+    if (dir === 'down') { if (g.r1 === g.r2) return; this.fill(p, { r1: g.r1, r2: g.r1, c1: g.c1, c2: g.c2 }, { r1: g.r1 + 1, r2: g.r2, c1: g.c1, c2: g.c2 }, 'down', true); }
+    else { if (g.c1 === g.c2) return; this.fill(p, { r1: g.r1, r2: g.r2, c1: g.c1, c2: g.c1 }, { r1: g.r1, r2: g.r2, c1: g.c1 + 1, c2: g.c2 }, 'right', true); }
+  },
+  dimsChanged(p, kind, list) {
+    const sh = p.sh; const set = kind === 'col' ? (sh.colEdited = sh.colEdited || new Set()) : (sh.rowEdited = sh.rowEdited || new Set());
+    list.forEach((i) => set.add(i));
+    this.markDirty(p.wb);
+    this.panes.forEach((q) => { if (q !== p && q.sh === sh) { q.axes(); q.block = null; q.render(true); q.updateSel(); } });
+  },
+
+  // ---------- التنسيق ----------
+  formatSel(p, mutate) {
+    p = p || this.pane(); if (!p.sh) return;
+    if (p.editing) p.commitEdit();
+    const g = p.range();
+    if ((g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1) > 60000) return this.toast('النطاق كبير جدًا للتنسيق دفعة واحدة. حدد نطاقًا أصغر.');
+    const ch = [];
+    for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) {
+      const old = p.sh.cells.get(key(r, c)); const st = { ...((old && old.s) || {}) };
+      mutate(st, old);
+      const cell = { ...(old || { v: null }) }; if (Object.keys(st).length) cell.s = st; else delete cell.s;
+      ch.push({ r, c, cell: cell.v == null && cell.f == null && !cell.s ? null : cell });
+    }
+    this.applyChanges(p.wb, p.sh, ch); p.focus();
+  },
+  toggleStyle(k) {
+    const p = this.pane(); if (!p.sh) return; const g = p.range(); let all = true;
+    for (let r = g.r1; r <= g.r2 && all; r++) for (let c = g.c1; c <= g.c2; c++) { const cell = p.sh.cells.get(key(r, c)); if (!(cell && cell.s && cell.s[k])) { all = false; break; } }
+    this.formatSel(p, (st) => { if (all) delete st[k]; else st[k] = 1; });
+  },
+  setStyle(k, v) { this.formatSel(null, (st) => { if (v == null && k !== 'fill' && k !== 'color') delete st[k]; else st[k] = v; }); },
+  setNumFmt(nf) { this.formatSel(null, (st) => { if (nf === 'General') st.nf = 'General'; else st.nf = nf; }); },
+  decimals(delta) {
+    const p = this.pane(); if (!p.sh) return; const a = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); let nf = a && a.s && a.s.nf; if (!nf || nf === 'General') nf = '0';
+    const m = /([0#]+)(?:\.([0#]*))?/.exec(nf); if (!m) return;
+    let d = (m[2] || '').length + delta; if (d < 0) d = 0; if (d > 15) d = 15;
+    const nn = nf.replace(m[0], m[1] + (d ? '.' + '0'.repeat(d) : ''));
+    this.formatSel(null, (st) => { st.nf = nn; });
+  },
+  syncToolbar() {
+    const p = this.pane(); const q = (id) => $(id);
+    const cell = p.sh && p.sh.cells.get(key(p.sel.ar, p.sel.ac)); const st = (cell && cell.s) || {};
+    [['#fm-b', 'b'], ['#fm-i', 'i'], ['#fm-u', 'u']].forEach(([id, k]) => q(id).classList.toggle('on', !!st[k]));
+    [['left', '#fm-al'], ['center', '#fm-ac'], ['right', '#fm-ar']].forEach(([k, id]) => q(id).classList.toggle('on', st.al === k));
+    q('#fm-nf').value = NF_PRESETS.some((x) => x[0] === st.nf) ? st.nf : (st.nf ? '__custom' : 'General');
+    q('#fm-color-bar').style.background = st.color || '#000000'; q('#fm-fill-bar').style.background = st.fill || 'transparent';
+  },
+
   // ---------- الأوراق ----------
   addSheet(p) {
     if (!p.wb) return;
-    let n = p.wb.sheets.length + 1; while (p.wb.sheets.some((s) => s.name === 'ورقة' + n)) n++;
-    p.wb.sheets.push(newSheet('ورقة' + n, p.sh ? p.sh.rtl : true));
+    let n = p.wb.sheets.length + 1; while (p.wb.sheets.some((s) => s.name === tr('ورقة') + n)) n++;
+    p.wb.sheets.push(newSheet(tr('ورقة') + n, p.sh ? p.sh.rtl : settings.newRtl));
     this.markDirty(p.wb); p.setSheet(p.wb.sheets.length - 1); this.refreshWb(p.wb);
   },
   async renameSheet(p, i) {
@@ -293,23 +363,22 @@ const app = window.app = {
     } else $('#file-input').click();
   },
   async openFiles(items) {
-    let first = true;
-    const single = this.layout === 'single';
-    if (items.length >= 2 && single) this.setLayout(this.innerWidth() < 700 ? 'v' : 'h');
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
+    let any = false;
+    for (const it of items) {
       try {
         const file = it.file || await it.handle.getFile();
         const wb = await this.readFile(file);
         if (!wb) continue;
-        if (it.handle && /\.(xlsx|csv|tsv|txt)$/i.test(it.handle.name)) wb.handle = it.handle;
-        let paneIdx;
-        if (items.length >= 2 && i < 2) paneIdx = i; // أول ملفين: جنبًا إلى جنب
-        await this.addWorkbook(wb, paneIdx);
-        first = false;
+        const nm = file.name || (it.handle && it.handle.name) || '';
+        // نحفظ في نفس الملف فقط عندما يكون xlsx أو csv، أما XLS وODS فيُحفظ عملك كملف XLSX جديد
+        if (it.handle && /\.(xlsx|csv|tsv|txt)$/i.test(nm) && wb.kind !== 'imported' && !wb.fallback) wb.handle = it.handle;
+        await this.addWorkbook(wb, this.active);
+        if (wb.kind === 'imported') this.toast('تم فتح ' + nm + '. سيُحفظ عملك كملف XLSX جديد، والملف الأصلي لن يتغير.', 6000);
+        else if (wb.fallback) this.toast('فُتح الملف بالقراءة المبسطة (تنسيقه معقد). سيُحفظ عملك كنسخة جديدة.', 6000);
+        any = true;
       } catch (e) { console.error(e); this.toast(`تعذر فتح «${(it.file || it.handle).name}»: ${e.message}`, 6000); }
     }
-    return !first;
+    return any;
   },
   innerWidth() { return window.innerWidth; },
   async readFile(file) {
@@ -320,18 +389,22 @@ const app = window.app = {
       return wb;
     }
     if (/\.(csv|tsv|txt)$/.test(low)) return readCsv(await file.text(), n);
-    if (low.endsWith('.xls')) { this.toast('صيغة XLS القديمة غير مدعومة بعد (مخطط لها في المرحلة 4). احفظ الملف بصيغة XLSX من Excel ثم افتحه.', 7000); return null; }
-    this.toast(`نوع الملف «${n}» غير مدعوم. المدعوم حاليًا: XLSX وCSV.`, 5000); return null;
+    if (/\.(xls|ods|xlsb|fods)$/.test(low)) { const wb = readSheetJS(await file.arrayBuffer(), n.replace(/\.\w+$/, '') + '.xlsx'); wb.lossy = ['styles']; return wb; }
+    try { return readSheetJS(await file.arrayBuffer(), n); } catch (e) { this.toast(`نوع الملف «${n}» غير مدعوم.`, 5000); return null; }
   },
   async newWb(paneIdx) {
     if (paneIdx != null) this.setActive(paneIdx);
-    let n = 1; while (this.wbs.some((w) => w.name === `مصنف${n}.xlsx`)) n++;
-    const wb = newWorkbook(`مصنف${n}.xlsx`);
+    let n = 1; while (this.wbs.some((w) => w.name === `${tr('مصنف')}${n}.xlsx`)) n++;
+    const wb = newWorkbook(`${tr('مصنف')}${n}.xlsx`, settings.newRtl);
     await this.addWorkbook(wb);
   },
   async handleLaunch() {
     // فتح الملفات من مدير الملفات (سطح المكتب/ChromeOS) عبر file_handlers
     if ('launchQueue' in window) window.launchQueue.setConsumer((p) => { if (p.files && p.files.length) this.openFiles(p.files.map((h) => ({ handle: h }))); });
+    if (isNative) {
+      const drain = async () => { try { const hs = await takeIntentFiles(); if (hs.length) await this.openFiles(hs.map((h) => ({ handle: h }))); } catch (e) { this.toast('تعذر فتح الملف: ' + e.message, 6000); } };
+      window.addEventListener('jadawelFiles', drain); await drain();
+    }
     // استقبال الملفات عبر "مشاركة" من Android (share_target)
     if (new URLSearchParams(location.search).has('shared') && 'caches' in window) {
       try {
@@ -358,7 +431,15 @@ const app = window.app = {
       const ok = await this.dialog('الحفظ بصيغة CSV', 'صيغة CSV تحفظ القيم فقط للورقة الظاهرة. التنسيقات والصيغ والأوراق الأخرى لن تُحفظ فيها.', [{ label: 'متابعة', value: true, primary: true }, { label: 'إلغاء', value: false }]);
       if (!ok) return false;
     }
-    const base = wb.name.replace(/\.(xlsx|xlsm|csv|tsv|txt)$/i, '');
+    // ملف فيه عناصر لا نستطيع الحفاظ عليها (رسوم بيانية، جداول محورية...): لا نكتب فوق الأصل أبدًا
+    if (fmt === 'xlsx' && wb.lossy && wb.lossy.length && !wb.lossyAck) {
+      const names = { charts: 'رسوم بيانية', pivots: 'جداول محورية', slicers: 'شرائح تصفية', macros: 'وحدات ماكرو', styles: 'بعض التنسيقات' };
+      const r = await this.dialog('تنبيه قبل الحفظ', `هذا الملف يحتوي على: ${wb.lossy.map((k) => names[k] || k).join('، ')}. هذه العناصر لا يحتفظ بها التطبيق عند الحفظ، لذلك سيُحفظ عملك كنسخة جديدة ويبقى ملفك الأصلي كما هو.`, [
+        { label: 'حفظ كنسخة جديدة', value: true, primary: true }, { label: 'إلغاء', value: false }]);
+      if (!r) return false;
+      wb.lossyAck = true; wb.handle = null; as = true;
+    }
+    const base = wb.name.replace(/\.(xlsx|xlsm|xls|ods|csv|tsv|txt)$/i, '');
     const suggested = base + '.' + fmt;
     try {
       let data;
@@ -367,26 +448,38 @@ const app = window.app = {
       const blob = new Blob([data], { type: fmt === 'xlsx' ? XLSX_MIME : 'text/csv;charset=utf-8' });
       let handle = !as && wb.handle && wb.handle.name.toLowerCase().endsWith('.' + fmt) ? wb.handle : null;
       if (handle && !wb.overwriteOK) {
-        const r = await this.dialog('استبدال الملف الأصلي؟', `سيتم استبدال الملف «${esc(handle.name)}» على جهازك بالنسخة المعدّلة.`, [
-          { label: 'استبدال الأصلي', value: 'over', danger: true }, { label: 'حفظ كنسخة جديدة', value: 'copy', primary: true }, { label: 'إلغاء', value: null }]);
+        const r = await this.dialog('استبدال الملف الأصلي؟', `سيتم حفظ التعديلات داخل الملف «${esc(handle.name)}» نفسه، مثل Excel.`, [
+          { label: 'حفظ في نفس الملف', value: 'over', danger: true }, { label: 'حفظ كنسخة جديدة', value: 'copy', primary: true }, { label: 'إلغاء', value: null }]);
         if (!r) return false;
         if (r === 'copy') { handle = null; as = true; } else wb.overwriteOK = true;
       }
       let savedAs = suggested, how;
+      const pickNew = async () => {
+        const h = await window.showSaveFilePicker({ suggestedName: as ? base + ' - نسخة.' + fmt : suggested, types: [fmt === 'xlsx' ? { description: 'Excel', accept: { [XLSX_MIME]: ['.xlsx'] } } : { description: 'CSV', accept: { 'text/csv': ['.csv'] } }] });
+        await this.writeHandle(h, blob); wb.handle = h; wb.overwriteOK = true; return h; // المستخدم اختار هذا الملف بنفسه
+      };
       if (handle) {
-        if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('لم يُمنح إذن الكتابة');
-        await this.writeHandle(handle, blob); savedAs = handle.name; how = 'تم الحفظ في الملف';
-      } else if ('showSaveFilePicker' in window && !window.__noFS) {
         try {
-          handle = await window.showSaveFilePicker({ suggestedName: as ? base + ' - نسخة.' + fmt : suggested, types: [fmt === 'xlsx' ? { description: 'Excel', accept: { [XLSX_MIME]: ['.xlsx'] } } : { description: 'CSV', accept: { 'text/csv': ['.csv'] } }] });
-        } catch (e) { if (e.name === 'AbortError') return false; throw e; }
-        await this.writeHandle(handle, blob); savedAs = handle.name; how = 'تم الحفظ باسم';
-        wb.handle = handle; wb.overwriteOK = true; // المستخدم اختار هذا الملف بنفسه
+          if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('لم يُمنح إذن الكتابة');
+          await this.writeHandle(handle, blob); savedAs = handle.name; how = 'تم الحفظ في الملف';
+        } catch (e) {
+          // تعذرت الكتابة على الملف الأصلي (مثلًا فُتح بصلاحية قراءة فقط): نعرض مكان حفظ بديل ولا نفقد شيئًا
+          if (!('showSaveFilePicker' in window)) throw e;
+          console.warn('write to original failed', e);
+          const ok = await this.dialog('تعذر الحفظ في الملف الأصلي', 'لا يسمح النظام بالكتابة في هذا الملف. ملفك الأصلي لم يتغير. اختر مكانًا لحفظ نسخة تحمل تعديلاتك.', [{ label: 'اختيار مكان الحفظ', value: true, primary: true }, { label: 'إلغاء', value: false }]);
+          if (!ok) return false;
+          wb.handle = null; as = true;
+          try { handle = await pickNew(); } catch (e2) { if (e2.name === 'AbortError') return false; throw e2; }
+          savedAs = handle.name; how = 'تم الحفظ باسم';
+        }
+      } else if ('showSaveFilePicker' in window && !window.__noFS) {
+        try { handle = await pickNew(); } catch (e) { if (e.name === 'AbortError') return false; throw e; }
+        savedAs = handle.name; how = 'تم الحفظ باسم';
       } else {
         savedAs = as ? base + ' - نسخة.' + fmt : suggested;
         await this.download(blob, savedAs); how = 'تم حفظ الملف';
       }
-      if (fmt === 'xlsx') { await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); }
+      if (fmt === 'xlsx') { await rebaseAfterSave(wb, data); await store.putOrig(wb.id, wb.orig); wb.fallback = false; wb.kind = 'xlsx'; }
       else wb.sheets.forEach((s) => { s.edited = new Set(); });
       if (savedAs !== wb.name) wb.name = savedAs;
       this.markDirty(wb, false); this.refreshWb(wb);
@@ -421,8 +514,8 @@ const app = window.app = {
   async persist(wb) {
     clearTimeout(this.saveTimers.get(wb.id)); this.saveTimers.delete(wb.id);
     if (!this.wbs.includes(wb)) return;
-    try { await store.putWb(wb, this.wbs.indexOf(wb)); $('#autosave').textContent = 'حُفظ تلقائيًا ' + new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
-    catch (e) { console.error(e); $('#autosave').textContent = '⚠ تعذر الحفظ التلقائي'; }
+    try { await store.putWb(wb, this.wbs.indexOf(wb)); $('#autosave').textContent = tr('حُفظ تلقائيًا ') + new Date().toLocaleTimeString(lang === 'ar' ? 'ar' : 'en', { hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { console.error(e); $('#autosave').textContent = tr('⚠ تعذر الحفظ التلقائي'); }
   },
   async flushAll() { await Promise.all([...this.saveTimers.keys()].map((id) => { const w = this.wbs.find((x) => x.id === id); return w && this.persist(w); })); },
   persistMeta() {
@@ -432,7 +525,7 @@ const app = window.app = {
     try {
       const docs = await store.loadAll();
       if (!docs.length) return;
-      for (const d of docs) { d.sheets.forEach((s) => { s.edited = s.edited || new Set(); }); this.wbs.push(d); this.undo.set(d.id, []); this.redo.set(d.id, []); }
+      for (const d of docs) { d.handle = rehydrate(d.handle); d.sheets.forEach((s) => { s.edited = s.edited || new Set(); }); this.wbs.push(d); this.undo.set(d.id, []); this.redo.set(d.id, []); }
       const m = (await store.getMeta('layout')) || {};
       const byId = (id) => this.wbs.find((w) => w.id === id);
       this.layout = m.layout || 'single'; this.setLayout(this.layout);
@@ -445,7 +538,17 @@ const app = window.app = {
   },
 
   // ---------- شريط الحالة ----------
-  onSelection(p) { if (p === this.pane()) this.updateStatus(); },
+  onSelection(p) { if (p === this.pane()) { this.updateStatus(); this.syncToolbar(); } },
+  openSettings() {
+    $('#set-lang').value = settings.lang; $('#set-dir').value = settings.newRtl ? 'rtl' : 'ltr';
+    $('#settings').showModal();
+  },
+  async saveSettings() {
+    const nl = $('#set-lang').value; const changed = nl !== settings.lang;
+    saveSettings({ lang: nl, newRtl: $('#set-dir').value === 'rtl' });
+    $('#settings').close();
+    if (changed) { await this.flushAll(); location.reload(); } else this.toast('تم حفظ الإعدادات');
+  },
   updateStatus() {
     const p = this.pane(), st = $('#status');
     if (!p.sh) { st.textContent = ''; return; }
@@ -458,7 +561,7 @@ const app = window.app = {
       if (typeof cell.v === 'number') { n++; sum += cell.v; }
     }
     const f = (x) => Number(x.toPrecision(12)).toLocaleString('en-US', { maximumFractionDigits: 10 });
-    st.textContent = n ? `المتوسط: ${f(sum / n)}   العدد: ${cnt}   المجموع: ${f(sum)}` : (cnt ? `العدد: ${cnt}` : '');
+    st.textContent = tr(n ? `المتوسط: ${f(sum / n)}   العدد: ${cnt}   المجموع: ${f(sum)}` : (cnt ? `العدد: ${cnt}` : ''));
   },
 
   // ---------- لوحة المفاتيح ----------
@@ -473,16 +576,21 @@ const app = window.app = {
   onKey(e) {
     if ($('#dialog').open) return;
     const tgt = e.target;
-    if (tgt.matches('input, textarea') && !tgt.classList.contains('sink')) return;
+    if (tgt.matches('input, textarea, select') && !tgt.classList.contains('sink') && tgt.offsetParent !== null) return;
     const p = this.pane(), ctrl = e.ctrlKey || e.metaKey, k = e.key, lk = k.toLowerCase();
     if (ctrl && lk === 's') { e.preventDefault(); this.save(null, e.shiftKey); return; }
     if (k === 'F12') { e.preventDefault(); this.save(null, true); return; }
     if (ctrl && lk === 'o') { e.preventDefault(); this.openDialog(); return; }
-    if (ctrl && lk === 'n' && e.altKey) { e.preventDefault(); this.newWb(); return; }
+    if (ctrl && lk === 'n') { e.preventDefault(); this.newWb(); return; }
     if (k === 'F6' && this.layout !== 'single') { e.preventDefault(); this.setActive(1 - this.active); this.pane().focus(); return; }
     if (!p.sh || p.editing) return;
     if (ctrl && lk === 'z') { e.preventDefault(); this.undoRedo(false); return; }
     if (ctrl && lk === 'y') { e.preventDefault(); this.undoRedo(true); return; }
+    if (ctrl && lk === 'd') { e.preventDefault(); this.fillEdge('down'); return; }
+    if (ctrl && lk === 'r') { e.preventDefault(); this.fillEdge('right'); return; }
+    if (ctrl && lk === 'b') { e.preventDefault(); this.toggleStyle('b'); return; }
+    if (ctrl && lk === 'i') { e.preventDefault(); this.toggleStyle('i'); return; }
+    if (ctrl && lk === 'u') { e.preventDefault(); this.toggleStyle('u'); return; }
     if (ctrl && lk === 'a') { e.preventDefault(); p.select(0, 0, p.sh.nrows - 1, p.sh.ncols - 1, false); return; }
     if (ctrl && k === 'Home') { e.preventDefault(); p.select(0, 0); return; }
     if (ctrl && (k === 'PageDown' || k === 'PageUp')) {
@@ -506,6 +614,17 @@ const app = window.app = {
     const on = (id, fn) => $(id).addEventListener('click', fn);
     on('#btn-new', () => this.newWb());
     on('#btn-second', () => this.secondView());
+    on('#fm-b', () => this.toggleStyle('b')); on('#fm-i', () => this.toggleStyle('i')); on('#fm-u', () => this.toggleStyle('u'));
+    on('#fm-al', () => this.setStyle('al', 'left')); on('#fm-ac', () => this.setStyle('al', 'center')); on('#fm-ar', () => this.setStyle('al', 'right'));
+    on('#fm-decp', () => this.decimals(1)); on('#fm-decm', () => this.decimals(-1));
+    $('#fm-nf').innerHTML = NF_PRESETS.map(([v, l]) => `<option value="${esc(v)}">${tr(l)}</option>`).join('') + `<option value="__custom" hidden>${tr('مخصص')}</option>`;
+    $('#fm-nf').addEventListener('change', (e) => { if (e.target.value !== '__custom') this.setNumFmt(e.target.value); this.pane().focus(); });
+    $('#fm-color').addEventListener('input', (e) => this.setStyle('color', e.target.value));
+    $('#fm-fill').addEventListener('input', (e) => this.setStyle('fill', e.target.value));
+    on('#fm-nofill', () => this.setStyle('fill', null));
+    on('#btn-settings', () => this.openSettings());
+    $('#set-save').addEventListener('click', () => this.saveSettings());
+    $('#set-cancel').addEventListener('click', () => $('#settings').close());
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) $('#btn-win').hidden = true;
     on('#btn-win', () => { if (!window.open(location.pathname, '_blank')) this.toast('اسمح بالنوافذ المنبثقة، أو افتح التطبيق مرة ثانية من أيقونته'); });
     on('#btn-open', () => this.openDialog());
@@ -551,16 +670,16 @@ const app = window.app = {
     });
   },
   toast(msg, ms = 3000) {
-    const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+    const t = document.createElement('div'); t.className = 'toast'; t.textContent = tr(msg);
     $('#toasts').appendChild(t); setTimeout(() => t.remove(), ms);
   },
   dialog(title, body, buttons, withInput) {
     const dlg = $('#dialog');
-    dlg.querySelector('h2').textContent = title;
-    dlg.querySelector('.body').innerHTML = body;
+    dlg.querySelector('h2').textContent = tr(title);
+    dlg.querySelector('.body').innerHTML = tr(body);
     const inp = dlg.querySelector('input'); inp.style.display = withInput != null ? '' : 'none'; inp.value = withInput || '';
     const bar = dlg.querySelector('.btns');
-    bar.innerHTML = buttons.map((b, i) => `<button data-i="${i}" class="${b.primary ? 'primary' : ''}${b.danger ? ' danger' : ''}">${b.label}</button>`).join('');
+    bar.innerHTML = buttons.map((b, i) => `<button data-i="${i}" class="${b.primary ? 'primary' : ''}${b.danger ? ' danger' : ''}">${tr(b.label)}</button>`).join('');
     return new Promise((res) => {
       const done = (v) => { dlg.close(); bar.onclick = null; dlg.oncancel = null; res(v); };
       bar.onclick = (e) => { const b = e.target.closest('button'); if (b) { const v = buttons[+b.dataset.i].value; done(withInput != null && v === true ? inp.value : (withInput != null && !v ? null : v)); } };

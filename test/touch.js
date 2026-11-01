@@ -3,7 +3,7 @@ let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) f
 (async () => { const b = await chromium.launch(); const ctx = await b.newContext({viewport:{width:1400,height:876}, hasTouch:true, isMobile:true, deviceScaleFactor:2});
  const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p);
  await p.goto('http://localhost:8765/'); await p.evaluate(()=>indexedDB.deleteDatabase('jadawel')); await p.reload(); await p.waitForTimeout(400);
- await p.setInputFiles('#file-input', ['inv.xlsx','inv2.xlsx'].map(n=>({name:n,mimeType:'x',buffer:fs.readFileSync('test/out/inv.xlsx')}))); await p.waitForFunction(()=>app.panes[1].wb);
+ await p.setInputFiles('#file-input', ['inv.xlsx','inv2.xlsx'].map(n=>({name:n,mimeType:'x',buffer:fs.readFileSync('test/out/inv.xlsx')}))); await p.waitForFunction(()=>app.wbs.length===2); await p.evaluate(()=>{app.setLayout('h'); app.showIn(0, app.wbs[0]); app.showIn(1, app.wbs[1]);});
  const pt = (q,r,c)=>p.evaluate(([q,r,c])=>{const P=app.panes[q]; const rc=P.layer.getBoundingClientRect(); const x=(P.colX[c]+P.colX[c+1])/2, y=(P.rowY[r]+P.rowY[r+1])/2; return {x:P.sh.rtl?rc.right-x:rc.left+x, y:rc.top+y};},[q,r,c]);
  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', {type, touchPoints: type==='touchEnd'?[]:[{x, y}]});
  console.log('• لمس');

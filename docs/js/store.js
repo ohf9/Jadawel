@@ -1,3 +1,4 @@
+import { plain } from './native.js';
 // الحفظ التلقائي في IndexedDB (يبقى على الجهاز بعد إغلاق التطبيق أو تعطله)
 let DB = 'jadawel'; const VER = 1;
 // كل نافذة مفتوحة من التطبيق لها رقم وقاعدة بيانات مستقلة، فلا تتداخل ملفاتها وتعديلاتها
@@ -21,7 +22,7 @@ function tx(store, mode, fn) {
 const req = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
 export function putWb(wb, order) {
-  const doc = { id: wb.id, name: wb.name, kind: wb.kind, dirty: wb.dirty, handle: wb.handle || null, overwriteOK: wb.overwriteOK, order, created: wb.created,
+  const doc = { id: wb.id, name: wb.name, kind: wb.kind, dirty: wb.dirty, handle: plain(wb.handle) || null, overwriteOK: wb.overwriteOK, order, created: wb.created,
     sheets: wb.sheets.map((s) => ({ ...s })) };
   return tx('wbs', 'readwrite', (s) => s.put(doc)).catch((e) => {
     // بعض المتصفحات لا تقبل تخزين مقبض الملف

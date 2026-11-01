@@ -59,21 +59,101 @@ export function rawText(cell) {
   return String(v);
 }
 
-// النص المعروض داخل الخلية (تنسيق أساسي فقط في المرحلة 1)
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const isDateFmt = (nf) => !!nf && /[ymdhs]/i.test(nf.replace(/"[^"]*"|\[[^\]]*\]|\\./g, '')) && !/^[#0?,.%\s]*$/.test(nf);
+function formatDate(d, nf) {
+  const Y = d.getUTCFullYear(), M = d.getUTCMonth(), D = d.getUTCDate(), h = d.getUTCHours(), mi = d.getUTCMinutes(), se = d.getUTCSeconds();
+  const ampm = /AM\/PM|A\/P/i.test(nf);
+  let out = '', i = 0, lastH = false;
+  const src = nf.replace(/\[[^\]]*\]/g, '');
+  while (i < src.length) {
+    const rest = src.slice(i);
+    let m;
+    if (src[i] === '"') { const j = src.indexOf('"', i + 1); out += src.slice(i + 1, j < 0 ? src.length : j); i = j < 0 ? src.length : j + 1; continue; }
+    if (src[i] === '\\') { out += src[i + 1] || ''; i += 2; continue; }
+    if ((m = /^(AM\/PM|A\/P)/i.exec(rest))) { out += h < 12 ? 'AM' : 'PM'; i += m[0].length; continue; }
+    if ((m = /^y{3,4}/i.exec(rest))) { out += Y; i += m[0].length; lastH = false; continue; }
+    if ((m = /^yy?/i.exec(rest))) { out += pad(Y % 100); i += m[0].length; lastH = false; continue; }
+    if ((m = /^m{5}/i.exec(rest))) { out += MONTHS_EN[M][0]; i += 5; continue; }
+    if ((m = /^mmmm/i.exec(rest))) { out += MONTHS_EN[M]; i += 4; continue; }
+    if ((m = /^mmm/i.exec(rest))) { out += MONTHS_EN[M].slice(0, 3); i += 3; continue; }
+    if ((m = /^mm?/i.exec(rest))) {
+      const next = /^[^dhsy]*?([dhsy])/i.exec(src.slice(i + m[0].length));
+      const minute = lastH || (next && /s/i.test(next[1]) && !/[dy]/i.test(src.slice(i + m[0].length, i + m[0].length + (next.index || 0) + 1)));
+      out += minute ? (m[0].length === 2 ? pad(mi) : mi) : (m[0].length === 2 ? pad(M + 1) : M + 1); i += m[0].length; lastH = false; continue;
+    }
+    if ((m = /^dddd/i.exec(rest))) { out += DAYS_EN[new Date(Date.UTC(Y, M, D)).getUTCDay()]; i += 4; continue; }
+    if ((m = /^ddd/i.exec(rest))) { out += DAYS_EN[new Date(Date.UTC(Y, M, D)).getUTCDay()].slice(0, 3); i += 3; continue; }
+    if ((m = /^dd?/i.exec(rest))) { out += m[0].length === 2 ? pad(D) : D; i += m[0].length; continue; }
+    if ((m = /^hh?/i.exec(rest))) { const hh = ampm ? (h % 12 || 12) : h; out += m[0].length === 2 ? pad(hh) : hh; i += m[0].length; lastH = true; continue; }
+    if ((m = /^ss?/i.exec(rest))) { out += m[0].length === 2 ? pad(se) : se; i += m[0].length; lastH = false; continue; }
+    out += src[i]; i++;
+  }
+  return out;
+}
+
+// تحويل رقم تسلسلي من Excel إلى تاريخ UTC
+export const serialToDate = (n) => new Date(Math.round((n - 25569) * 86400000));
+
+function splitSections(nf) {
+  const out = []; let cur = '', q = false;
+  for (const ch of nf) { if (ch === '"') q = !q; if (ch === ';' && !q) { out.push(cur); cur = ''; } else cur += ch; }
+  out.push(cur); return out;
+}
+export function formatNumber(v, nf) {
+  const secs = splitSections(nf);
+  let sec = secs[0], neg = v < 0, val = v;
+  if (secs.length > 1 && neg) { sec = secs[1]; val = -v; }
+  else if (secs.length > 2 && v === 0) sec = secs[2];
+  sec = sec.replace(/\[(?:Red|Black|Blue|Green|Color\d+|White|Cyan|Magenta|Yellow)\]/gi, '').replace(/\[\$([^\]\-]*)(?:-[^\]]*)?\]/g, '"$1"').replace(/\[[^\]]*\]/g, '');
+  const pct = (sec.replace(/"[^"]*"/g, '').match(/%/g) || []).length;
+  if (pct) val = val * Math.pow(100, pct);
+  // أجزاء النمط: نص قبل الرقم، نمط الرقم، نص بعده
+  let pre = '', post = '', pat = '', seen = false, i = 0;
+  while (i < sec.length) {
+    const ch = sec[i];
+    if (ch === '"') { const j = sec.indexOf('"', i + 1); const t = sec.slice(i + 1, j < 0 ? sec.length : j); (seen ? (post += t) : (pre += t)); i = j < 0 ? sec.length : j + 1; continue; }
+    if (ch === '\\') { (seen ? (post += sec[i + 1] || '') : (pre += sec[i + 1] || '')); i += 2; continue; }
+    if (ch === '_' || ch === '*') { i += 2; continue; }
+    if (/[#0?,.]/.test(ch) && !(seen && post)) { pat += ch; seen = true; i++; continue; }
+    if (ch === '%') { (seen ? (post += '%') : (pre += '%')); i++; continue; }
+    if (/[Ee]/.test(ch) && /^[Ee][+-]/.test(sec.slice(i))) { pat += 'E'; i += 2; while (sec[i] === '0') i++; continue; }
+    if (ch === '@') { i++; continue; }
+    (seen ? (post += ch) : (pre += ch)); i++;
+  }
+  if (!pat) return (neg && secs.length < 2 ? '-' : '') + pre + post || String(v);
+  const dec = (pat.split('.')[1] || '').replace(/E.*/, '').length;
+  let body;
+  if (/E/.test(pat)) body = val.toExponential(dec).replace('e', 'E').replace(/E([+-])(\d)$/, 'E$10$2');
+  else {
+    const grouping = /,/.test(pat.replace(/,+$/, '').replace(/\.[#0?,]*/, ''));
+    const trailing = (pat.match(/,+$/) || [''])[0].length;
+    if (trailing) val = val / Math.pow(1000, trailing);
+    const minInt = ((pat.split('.')[0] || '').match(/0/g) || []).length;
+    const minDec = ((pat.split('.')[1] || '').match(/0/g) || []).length;
+    body = Math.abs(val).toLocaleString('en-US', { useGrouping: grouping, minimumFractionDigits: minDec, maximumFractionDigits: dec });
+    const ip = body.split('.')[0].replace(/,/g, '');
+    if (minInt > ip.length) { const padded = ip.padStart(minInt, '0'); body = (grouping ? Number(padded).toLocaleString('en-US') .padStart(0) : padded) + (body.includes('.') ? '.' + body.split('.')[1] : ''); if (grouping && minInt > 3) body = padded.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (body.includes('.') ? '.' + body.split('.')[1] : ''); }
+    if (minInt === 0 && /^0\./.test(body)) body = body.slice(1);
+    if (neg && secs.length < 2 && Number(body.replace(/,/g, '')) !== 0) body = '-' + body;
+  }
+  return pre + body + post;
+}
+
+// النص المعروض داخل الخلية
 export function displayText(cell) {
   if (!cell) return '';
   let v = cell.v;
   if (cell.f != null && v === undefined) return '=' + cell.f; // صيغة جديدة لم تُحسب بعد
   if (v == null) return '';
-  if (v instanceof Date) return fmtDate(v);
+  const nf = cell.s && cell.s.nf;
+  if (v instanceof Date) return nf && isDateFmt(nf) ? formatDate(v, nf) : fmtDate(v);
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
   if (typeof v === 'number') {
-    const nf = cell.s && cell.s.nf;
-    if (nf) {
-      const dec = (/0\.(0+)/.exec(nf) || [, ''])[1].length;
-      if (nf.includes('%')) return (v * 100).toFixed(dec) + '%';
-      if (/[#0],[#0]/.test(nf)) return v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-      if (/0\.0/.test(nf)) return v.toFixed(dec);
+    if (nf && nf !== 'General') {
+      if (isDateFmt(nf)) return formatDate(serialToDate(v), nf);
+      try { return formatNumber(v, nf); } catch (e) { /* تنسيق غير مفهوم: نعرض الرقم كما هو */ }
     }
     if (Number.isInteger(v)) return String(v);
     return String(Number(v.toPrecision(11)));
