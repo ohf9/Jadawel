@@ -13,6 +13,7 @@ import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopov
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { install as installTools } from './tools.js';
 import { installBackstageExtra } from './bsextra.js';
+import { installPivot } from './pivot.js';
 import { installCF } from './cf.js';
 import { installFreeze } from './freeze.js';
 import { installCharts } from './chartui.js';
@@ -1062,6 +1063,7 @@ installTools(app);
 installCharts(Pane, app);
 installFreeze(Pane, app);
 installCF(app);
+installPivot(app);
 app.init();
 installKbd(app); installUnsup(app);
 installBackstageExtra(app);

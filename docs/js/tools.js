@@ -41,6 +41,7 @@ const ICONS = {
   clear: '<path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/>',
   freeze: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M4 10h16M10 4v16" stroke-width="3" opacity=".35"/>',
   cf: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.6h16"/><path d="M4 4h16v5.3H4z" fill="currentColor" opacity=".3"/>',
+  pivot: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M13 13h4M13 16h4"/>',
   fillc: '<path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 20h14"/>',
 };
 const NO_ICON = new Set();
@@ -50,7 +51,8 @@ const G = (...b) => `<div class="rg"><div class="rg-body">${b.join('')}</div></d
 const C2 = (...rows) => `<div class="col2">${rows.map((r) => `<div class="row">${r}</div>`).join('')}</div>`;
 
 const RIBBON = {
-  insert: G(B('insRow', 'insrow', 'إدراج صفوف', 'إدراج صفوف فوق التحديد (بعدد الصفوف المحددة)'), B('insCol', 'inscol', 'إدراج أعمدة', 'إدراج أعمدة قبل التحديد (بعدد الأعمدة المحددة)'), B('delRow', 'delrow', 'حذف صفوف', 'حذف الصفوف المحددة'), B('delCol', 'delcol', 'حذف أعمدة', 'حذف الأعمدة المحددة'))
+  insert: G(B('pivot', 'pivot', 'جدول محوري', 'تلخيص البيانات حسب حقل صفوف وأعمدة بالمجموع أو العدد أو المتوسط'))
+    + G(B('insRow', 'insrow', 'إدراج صفوف', 'إدراج صفوف فوق التحديد (بعدد الصفوف المحددة)'), B('insCol', 'inscol', 'إدراج أعمدة', 'إدراج أعمدة قبل التحديد (بعدد الأعمدة المحددة)'), B('delRow', 'delrow', 'حذف صفوف', 'حذف الصفوف المحددة'), B('delCol', 'delcol', 'حذف أعمدة', 'حذف الأعمدة المحددة'))
     + `<div class="rg"><div class="rg-body">${CHART_TYPES.map(([t, l]) => `<button class="rb big" data-act="chart:${t}" title="${l}">${chartIcon(t)}<span>${l}</span></button>`).join('')}</div></div>`
     + G(B('newSheet', 'sheet', 'ورقة جديدة', 'إضافة ورقة عمل جديدة'))
     + G(B('fnDialog', 'fx', 'إدراج دالة', 'اختر دالة من القائمة وأدرجها في الخلية'), B('today', 'date', 'تاريخ اليوم', 'يضع تاريخ اليوم كقيمة ثابتة (Ctrl+;)'), B('nowTime', 'time', 'الوقت الآن', 'يضع الوقت الحالي كقيمة ثابتة (Ctrl+Shift+;)')),
@@ -95,7 +97,7 @@ function this_restructure(rib) {
   gNum.after(gSty); gSty.after(gCells); gCells.after(gAuto);
   const names = {
     home: [['#btn-paste', 'الحافظة'], ['#fm-font', 'الخط'], ['#fm-al', 'المحاذاة'], ['#fm-nf', 'الرقم'], ['[data-act=cfMenu]', 'الأنماط'], ['[data-act=insMenu]', 'الخلايا'], ['[data-act=sumMenu]', 'التعديل']],
-    insert: [['[data-act=insRow]', 'الخلايا'], ['[data-act^="chart:"]', 'الرسوم البيانية'], ['[data-act=newSheet]', 'الأوراق'], ['[data-act=fnDialog]', 'الدوال']],
+    insert: [['[data-act=pivot]', 'الجداول'], ['[data-act=insRow]', 'الخلايا'], ['[data-act^="chart:"]', 'الرسوم البيانية'], ['[data-act=newSheet]', 'الأوراق'], ['[data-act=fnDialog]', 'الدوال']],
     formulas: [['[data-act=sumMenu]', 'مكتبة الدوال'], ['[data-act^="lib:"]', 'فئات الدوال'], ['[data-act=showF]', 'تدقيق الصيغ']],
     data: [['[data-act=sortAZ]', 'ترتيب'], ['[data-act=filter]', 'تصفية'], ['[data-act=removeDup]', 'أدوات البيانات']],
     view: [['[data-layout-btn]', 'النوافذ'], ['#btn-grid', 'إظهار'], ['[data-act=zoomIn]', 'التكبير'], ['[data-act=freezeMenu]', 'النافذة'], ['[data-act=swapPanes]', 'النوافذ']],
@@ -148,6 +150,7 @@ export function install(app) {
         case 'cfMenu': return this.cfMenu(btn);
         case 'insMenu': return this.menu(btn, [{ t: 'إدراج صفوف', f: () => this.insertLines(p, 'r') }, { t: 'إدراج أعمدة', f: () => this.insertLines(p, 'c') }, { t: 'إدراج ورقة', f: () => this.addSheet(p) }]);
         case 'delMenu': return this.menu(btn, [{ t: 'حذف صفوف', f: () => this.deleteLines(p, 'r') }, { t: 'حذف أعمدة', f: () => this.deleteLines(p, 'c') }]);
+        case 'pivot': return this.pivotDialog(p);
         case 'newSheet': return this.addSheet(p);
         case 'fnDialog': return this.fnDialog();
         case 'today': return this.putNow(p, 'date');
