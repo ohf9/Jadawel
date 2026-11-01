@@ -42,6 +42,7 @@ const ICONS = {
   clear: '<path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/>',
   freeze: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M4 10h16M10 4v16" stroke-width="3" opacity=".35"/>',
   cf: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.6h16"/><path d="M4 4h16v5.3H4z" fill="currentColor" opacity=".3"/>',
+  dvl: '<rect x="3.5" y="6" width="17" height="6" rx="1.5"/><path d="M15 8l1.8 2 1.8-2"/><path d="M5 16h14M5 19.5h9"/>',
   pic: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>',
   pivot: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M13 13h4M13 16h4"/>',
   fit: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M7 12h10M9 10l-2 2 2 2M15 10l2 2-2 2"/>',
@@ -68,7 +69,7 @@ const RIBBON = {
     + G(B('showF', 'showf', 'إظهار الصيغ', 'عرض الصيغ بدل نتائجها (Ctrl+`)'), B('calcNow', 'calc', 'احسب الآن', 'إعادة حساب كل الصيغ (F9)')),
   data: G(B('sortAZ', 'sortaz', 'ترتيب أ-ي', 'ترتيب تصاعدي حسب العمود النشط'), B('sortZA', 'sortza', 'ترتيب ي-أ', 'ترتيب تنازلي حسب العمود النشط'), B('sortDlg', 'sort', 'ترتيب مخصص', 'اختر عمود الترتيب واتجاهه'))
     + G(B('filter', 'filter', 'تصفية', 'تشغيل/إيقاف التصفية (أسهم فوق الأعمدة)'), B('clearFilter', 'filter', 'مسح التصفية', 'إظهار كل الصفوف المخفية بالتصفية'))
-    + G(B('removeDup', 'dup', 'حذف المكرر', 'حذف الصفوف المكررة في التحديد'), B('textToCols', 't2c', 'نص إلى أعمدة', 'تقسيم نص العمود إلى أعمدة بفاصل')),
+    + G(B('removeDup', 'dup', 'حذف المكرر', 'حذف الصفوف المكررة في التحديد'), B('textToCols', 't2c', 'نص إلى أعمدة', 'تقسيم نص العمود إلى أعمدة بفاصل'), B('dvList', 'dvl', 'قائمة منسدلة', 'تحويل الخلايا المحددة إلى قائمة اختيار منسدلة')),
 };
 const NFB = G(`<div class="col2"><div class="row"><button class="rb icon txt ltr" data-act="nf:0%" title="نمط النسبة المئوية">%</button><button class="rb icon txt ltr" data-act="nf:#,##0.00" title="نمط الفاصلة (آلاف)">000</button><button class="rb icon txt ltr" data-act="nf:$#,##0.00" title="نمط العملة">$</button></div></div>`);
 const HOME_EXTRA = NFB + G(B('mergeMenu', 'merge', 'دمج الخلايا', 'دمج وتوسيط / دمج / فصل'), B('borderMenu', 'border', 'حدود', 'حدود الخلايا'), B('cfMenu', 'cf', 'تنسيق شرطي', 'تمييز الخلايا تلقائيًا حسب قيمتها: ألوان، أشرطة، تدرجات'))
@@ -153,6 +154,7 @@ export function install(app) {
         case 'insCol': return this.insertLines(p, 'c');
         case 'delRow': return this.deleteLines(p, 'r');
         case 'delCol': return this.deleteLines(p, 'c');
+        case 'dvList': return this.dvDialog(p);
         case 'picture': return this.insertPicture(p);
         case 'chart': return this.insertChart(p, arg);
         case 'freezeMenu': return this.menu(btn, [

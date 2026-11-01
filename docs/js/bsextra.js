@@ -22,7 +22,8 @@ export function installBackstageExtra(app) {
   // القوالب في «جديد»
   const ns = main.querySelector('section[data-p="new"]');
   const drawNew = () => {
-    ns.innerHTML = `<h2>${tr('جديد')}</h2><div class="bs-cards tpl">${TEMPLATES.map((t) => `<button class="card" data-tpl="${t.id}"><i class="ci">${ICON(t.icon)}</i><b>${esc(t.name())}</b><span>${esc(t.desc())}</span></button>`).join('')}</div>`;
+    const COL = { blank: '#9aa5a0', grades: '#2f7d4f', budget: '#2b6cb0', invoice: '#b7791f', attend: '#2c7a7b', weekly: '#6b46c1', todo: '#c05621' };
+    ns.innerHTML = `<h2>${tr('جديد')}</h2><div class="tgrid">${TEMPLATES.map((t) => `<button class="tcard" data-tpl="${t.id}" title="${esc(t.desc())}"><div class="pv" style="--h:${COL[t.id] || '#2f7d4f'}"><i class="pv-h"></i><i class="pv-c"></i><span class="pv-ic">${ICON(t.icon)}</span></div><b>${esc(t.name())}</b><small>${esc(t.desc())}</small></button>`).join('')}</div>`;
   };
   drawNew(); app._drawNew = drawNew;
   ns.addEventListener('click', (e) => {

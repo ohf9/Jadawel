@@ -62,6 +62,7 @@ async function readXlsxExcelJS(buffer, name) {
     { const cfs = ws.conditionalFormattings; if (cfs && cfs.length) sh.cf = cfs.map((e) => ({ ref: e.ref, rules: (e.rules || []).map((r) => Object.assign({}, r)) })); }
     { const nt = {}; ws.eachRow({ includeEmpty: false }, (row, rn) => row.eachCell({ includeEmpty: false }, (cell, cn) => { const n = cell.note; if (!n) return; const t = typeof n === 'string' ? n : (n.texts || []).map((x) => x.text).join(''); if (t) nt[(rn - 1) + ',' + (cn - 1)] = t; })); if (Object.keys(nt).length) sh.notes = nt; }
     if (ws.sheetProtection) sh.protect = true;
+    { const dvm = ws.dataValidations && ws.dataValidations.model; if (dvm) { const d = {}; let n = 0; for (const [a, v] of Object.entries(dvm)) { if (!v || v.type !== 'list' || !v.formulae || !v.formulae[0] || n > 20000) continue; const m = /^([A-Z]+)(\d+)$/.exec(a); if (!m) continue; let c = 0; for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64; d[(+m[2] - 1) + ',' + (c - 1)] = String(v.formulae[0]); n++; } if (n) sh.dv = d; } }
     sh.origId = ws.id; sh.tabColor = argb(ws.properties && ws.properties.tabColor);
     ws.eachRow({ includeEmpty: false }, (row, rn) => {
       if (row.height) sh.rowH[rn - 1] = Math.round(row.height * 4 / 3);
@@ -143,6 +144,7 @@ export async function writeXlsx(wb) {
     if (sh.cfEdited) ws.conditionalFormattings = (sh.cf || []).map((e) => ({ ref: e.ref, rules: e.rules }));
     if (sh.notesTouched && sh.notesTouched.size) for (const k of sh.notesTouched) { const [r, c] = unkey(k); const ec = ws.getCell(r + 1, c + 1); const t = (sh.notes || {})[k]; if (t) ec.note = t; else ec._comment = undefined; }
     else if (all && sh.notes) for (const [k, t] of Object.entries(sh.notes)) { const [r, c] = unkey(k); ws.getCell(r + 1, c + 1).note = t; }
+    if (sh.dvEdited) for (const e of sh.dvNew || []) for (let r = e.r1; r <= e.r2; r++) for (let c = e.c1; c <= e.c2; c++) { const ec = ws.getCell(r + 1, c + 1); if (e.src) ec.dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [e.src] }; else ec.dataValidation = undefined; }
     if (sh.protectEdited) { if (sh.protect) await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true }); else ws.unprotect(); }
     keep.add(ws.id);
     const keys = all ? sh.cells.keys() : sh.edited;
@@ -179,7 +181,7 @@ export async function rebaseAfterSave(wb, buffer) {
   if (hasDraw(wb)) buffer = await stripDrawings(buffer);
   await x.xlsx.load(buffer);
   const ids = x.worksheets.map((w) => w.id);
-  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.notesTouched = null; sh.protectEdited = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
+  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.notesTouched = null; sh.protectEdited = false; sh.dvEdited = false; sh.dvNew = null; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
   wb.orig = buffer; wb.kind = 'xlsx';
 }
 

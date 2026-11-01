@@ -478,3 +478,35 @@ input.sw:checked{background:var(--accent);border-color:var(--accent)}input.sw:ch
 .bs-empty svg{width:56px;height:56px;stroke:var(--accent);fill:none;stroke-width:1.4;opacity:.55;margin-bottom:8px;stroke-linecap:round;stroke-linejoin:round}
 .bs-empty b{color:var(--text);font-size:16px}
 .bs-main h3{margin:28px 0 10px;font-size:15px;color:var(--muted);font-weight:600}
+
+/* قائمة File: عمودية دائمًا مثل Excel (حتى في نصف الشاشة) */
+@media (max-width:700px){#backstage{flex-direction:row!important}.bs-nav{flex-direction:column!important;overflow-x:hidden!important;overflow-y:auto!important;padding:10px 6px!important;width:168px!important}.bs-nav .bs-back{margin:0 0 8px!important}.bs-nav button{white-space:normal!important;width:100%}.bs-main{padding:14px 14px!important}}
+@media (max-width:460px){.bs-nav{width:54px!important}.bs-nav button span{display:none!important}.bs-nav button{justify-content:center;padding:10px!important}}
+/* فتح: أماكن على اليمين/اليسار وقائمة الأخيرة */
+.op{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:22px;align-items:start}
+.op-places{display:flex;flex-direction:column;gap:4px}
+.place{display:flex;align-items:center;gap:14px;text-align:start;border:0;background:transparent;color:var(--text);padding:12px 14px;border-radius:12px;min-height:56px;transition:background .15s}
+.place:hover{background:var(--hover)}.place.on{background:var(--accent2);box-shadow:inset 3px 0 0 var(--accent)}
+[dir=rtl] .place.on{box-shadow:inset -3px 0 0 var(--accent)}
+.place svg{width:26px;height:26px;flex:none;stroke:var(--accent);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.place span{display:flex;flex-direction:column;min-width:0}.place b{font-size:15px;font-weight:600}.place small{color:var(--muted);font-size:12px;line-height:1.4}
+.op-list .bs-h h3{margin:0;color:var(--text);font-size:16px}
+@media (max-width:760px){.op{grid-template-columns:1fr}.op-places{flex-direction:row;flex-wrap:wrap}.place{flex:1 1 150px}.place small{display:none}}
+/* جديد: بطاقات بمعاينة مثل Excel */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px 18px}
+.tcard{display:flex;flex-direction:column;gap:6px;border:0;background:transparent;padding:0;text-align:start;color:var(--text)}
+.tcard .pv{position:relative;aspect-ratio:4/3;border-radius:6px;border:1px solid var(--line);background:#fff;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.14);transition:box-shadow .18s,transform .18s,border-color .18s;
+  background-image:linear-gradient(#d9ded9 1px,transparent 1px),linear-gradient(90deg,#d9ded9 1px,transparent 1px);background-size:100% 18px,30% 100%;background-position:0 26px,0 0}
+.tcard:hover .pv{box-shadow:0 6px 18px rgba(0,0,0,.25);transform:translateY(-2px);border-color:var(--accent)}
+.tcard .pv-h{position:absolute;inset:0 0 auto 0;height:26px;background:var(--h)}
+.tcard .pv-c{position:absolute;inset:26px auto 0 0;width:30%;background:color-mix(in srgb,var(--h) 12%,#fff);opacity:.9}
+.tcard .pv-ic{position:absolute;inset:auto 10px 10px auto;width:34px;height:34px;border-radius:10px;background:var(--h);display:grid;place-items:center}
+[dir=rtl] .tcard .pv-ic{inset:auto auto 10px 10px}
+.tcard .pv-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tcard b{font-size:14.5px;font-weight:600}.tcard small{color:var(--muted);font-size:12px;line-height:1.4}
+/* الأشياء (رسوم/صور/مؤشرات) تختفي تحت الصفوف والأعمدة المثبتة بدل أن تغطيها */
+.charts{z-index:1}.pics{z-index:1!important}
+
+.dvbtn{position:absolute;z-index:5;display:none;padding:0;border:1px solid var(--s-hdr-b,#999);background:var(--s-hdr,#f3f3f3);border-radius:2px;cursor:pointer;pointer-events:auto}
+.dvbtn svg{width:100%;height:100%;stroke:var(--s-text,#333);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;padding:5px}
+.dvmenu{max-height:min(60vh,420px);overflow:auto}
