@@ -10,5 +10,5 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   await p.click('#bs-list [data-rm="0"]'); await p.waitForTimeout(200);
   check(await p.locator('#bs-list .rec').count() === 1, 'إزالة عنصر من القائمة');
   await p.keyboard.press('Escape'); await p.waitForTimeout(300); check(await p.locator('#backstage').isHidden(), 'Esc يغلق');
-  await p.evaluate(()=>app.showBackstage('open')); await p.click('#backstage [data-p="new"]'); await p.click('#bs-new'); await p.waitForFunction(() => app.pane().sh);
+  await p.evaluate(()=>app.showBackstage('open')); await p.click('#backstage [data-p="new"]'); await p.click('#backstage [data-tpl]'); await p.waitForFunction(() => app.pane().sh);
   check(true, 'جديد من الشاشة'); await b.close(); console.log(fails ? fails + ' فشل' : 'نجحت شاشة الملفات'); process.exit(fails ? 1 : 0); })();

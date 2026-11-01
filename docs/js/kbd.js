@@ -47,6 +47,11 @@ export function install(app) {
     ed.dispatchEvent(new Event('input', { bubbles: true }));
   };
   const caret = (p, d) => { const ed = target(p), rtl = ed.dir === 'rtl', n = Math.max(0, Math.min(ed.value.length, (ed.selectionStart || 0) + (rtl ? -d : d))); ed.setSelectionRange(n, n); };
+  app.openSysKeyboard = (p) => {
+    app.sysKb = true; if (!p.editing) p.startEdit();
+    const ed = target(p); ed.inputMode = 'text'; p.editing.keep = true; ed.blur(); ed.focus({ preventScroll: true });
+    setTimeout(() => { p.editing && (p.editing.keep = false); }, 500);
+  };
   const press = (k, c) => {
     const p = app.pane(); if (!p || !p.sh) return;
     if (k === 'side') { saveSettings({ kpSide: settings.kpSide === 'left' ? 'right' : 'left' }); app.syncKbd(); return; }
@@ -59,10 +64,7 @@ export function install(app) {
     }
     if (k === 'enter') { if (p.editing) { p.commitEdit(!!p.editing.fbar); p.move(1, 0); p.focus(); if (layer !== 'num') { layer = 'num'; draw(); } } else p.startEdit(); return; }
     if (k === 'tab') { if (p.editing) p.commitEdit(!!p.editing.fbar); p.move(0, 1); p.focus(); if (layer !== 'num') { layer = 'num'; draw(); } return; }
-    if (k === 'abc') {
-      app.sysKb = true; if (!p.editing) p.startEdit();
-      const ed = target(p); ed.inputMode = 'text'; p.editing.keep = true; ed.blur(); ed.focus({ preventScroll: true }); setTimeout(() => { p.editing && (p.editing.keep = false); }, 400); return;
-    }
+    if (k === 'abc') return app.openSysKeyboard(p);
     const dir = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' }[k];
     if (p.editing && p.editing.mode === 'edit' && (k === 'left' || k === 'right')) return caret(p, k === 'left' ? -1 : 1);
     if (p.editing) p.commitEdit(!!p.editing.fbar);

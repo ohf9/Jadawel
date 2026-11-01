@@ -7,7 +7,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   const set = (r, c, t) => p.evaluate(([r, c, t]) => { const P = app.pane(); P.select(r, c); P.startEdit(t, 'enter'); P.commitEdit(); }, [r, c, t]);
   const get = (r, c) => p.evaluate(([r, c]) => { const x = app.pane().sh.cells.get(r + ',' + c); return x && x.v; }, [r, c]);
   const form = (r, c) => p.evaluate(([r, c]) => { const x = app.pane().sh.cells.get(r + ',' + c); return x && x.f; }, [r, c]);
-  const tabs = await p.$$eval('.rtabs [data-rt]', (a) => a.map((x) => x.dataset.rt)); check(tabs.join() === 'file,home,insert,formulas,data,view', 'تبويبات الشريط ' + tabs);
+  const tabs = await p.$$eval('.rtabs [data-rt]', (a) => a.map((x) => x.dataset.rt)); check(tabs.join() === 'file,home,insert,draw,formulas,data,review,view', 'تبويبات الشريط ' + tabs);
   // بيانات
   const rows = [['الاسم', 'المبلغ'], ['سعد', 30], ['أحمد', 10], ['سعد', 30], ['خالد', 20]];
   for (let r = 0; r < rows.length; r++) for (let c = 0; c < 2; c++) await set(r, c, String(rows[r][c]));

@@ -23,7 +23,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   check(await p.isVisible('.pane.active .warn'), 'الشارة ظاهرة'); await p.click('.pane.active .warn'); await p.waitForSelector('#dialog[open]'); check((await p.textContent('#dialog .body')).includes('FILTER'), 'شرح الشارة يذكر الدالة'); await p.click('#dialog .btns button:first-child');
   // الإنجليزية
   await p.evaluate(() => app.applyLang('en')); await p.waitForTimeout(200);
-  const tabs = await p.$$eval('.rtabs [data-rt]', (a) => a.map((x) => x.textContent.trim())); check(tabs.join() === 'File,Home,Insert,Formulas,Data,View', 'التبويبات بالإنجليزية ' + tabs);
+  const tabs = await p.$$eval('.rtabs [data-rt]', (a) => a.map((x) => x.textContent.trim())); check(tabs.join() === 'File,Home,Insert,Draw,Formulas,Data,Review,View', 'التبويبات بالإنجليزية ' + tabs);
   await p.evaluate(() => app.ribbonTab('data')); const lbl = await p.$$eval('.rpanel[data-t=data] .rb span', (a) => a.map((x) => x.textContent.trim())); check(!lbl.some((x) => /[؀-ۿ]/.test(x)), 'تبويب البيانات بالإنجليزية ' + lbl.join('|'));
   await p.evaluate(() => app.ribbonTab('formulas')); const lbl2 = await p.$$eval('.rpanel[data-t=formulas] .rb span', (a) => a.map((x) => x.textContent.trim())); check(!lbl2.some((x) => /[؀-ۿ]/.test(x)), 'تبويب الصيغ بالإنجليزية ' + lbl2.join('|'));
   await p.evaluate(() => app.applyLang('ar'));

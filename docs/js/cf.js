@@ -112,10 +112,11 @@ export function cfEffect(items, sh, r, c, cell) {
 
 // ---------- واجهة ----------
 const refOf = (g) => a1(g.r1, g.c1) + (g.r1 === g.r2 && g.c1 === g.c2 ? '' : ':' + a1(g.r2, g.c2));
+const cfUndo = (app, p, before, after) => { const sh = p.sh; const set = (v) => () => { sh.cf = structuredClone(v); sh.cfEdited = true; }; app.pushUndoFn(p.wb, sh, set(before), set(after)); };
 function addRule(app, p, rule, g) {
-  const sh = p.sh; const rg = g || p.range();
+  const sh = p.sh; const rg = g || p.range(); const before = structuredClone(sh.cf || []);
   sh.cf = sh.cf || []; rule.priority = 1 + Math.max(0, ...sh.cf.flatMap((e) => e.rules.map((r) => r.priority || 0)));
-  sh.cf.push({ ref: refOf(rg), rules: [rule] }); sh.cfEdited = true; app.markDirty(p.wb); app.cfRefresh(sh);
+  sh.cf.push({ ref: refOf(rg), rules: [rule] }); sh.cfEdited = true; app.markDirty(p.wb); app.cfRefresh(sh); cfUndo(app, p, before, structuredClone(sh.cf));
 }
 const OPLABEL = { greaterThan: 'أكبر من', lessThan: 'أصغر من', between: 'بين', equal: 'يساوي', containsText: 'يحتوي النص' };
 
@@ -149,16 +150,17 @@ export function installCF(app) {
     },
     cfClear(p, g) {
       const sh = p.sh; if (!sh.cf || !sh.cf.length) return this.toast('لا توجد قواعد تنسيق شرطي');
+      const before = structuredClone(sh.cf);
       if (!g) sh.cf = [];
       else sh.cf = sh.cf.filter((e) => { const rs = rectsOf(e.ref); return !rs.some((x) => !(x.r2 < g.r1 || x.r1 > g.r2 || x.c2 < g.c1 || x.c1 > g.c2)); });
-      sh.cfEdited = true; this.markDirty(p.wb); this.cfRefresh(sh);
+      sh.cfEdited = true; this.markDirty(p.wb); this.cfRefresh(sh); cfUndo(this, p, before, structuredClone(sh.cf));
     },
     async cfManage(p) {
       const sh = p.sh; const list = () => (sh.cf || []).flatMap((e, i) => e.rules.map((r, j) => ({ e, i, j, r })));
       const label = (r) => ({ cellIs: OPLABEL[r.operator] || r.operator, containsText: 'نص يحتوي', top10: r.bottom ? 'الأدنى' : 'الأعلى', aboveAverage: r.aboveAverage === false ? 'أقل من المتوسط' : 'أعلى من المتوسط', colorScale: 'تدرج لوني', dataBar: 'شريط بيانات', expression: 'صيغة (محفوظة، لا تُعرض هنا)' }[r.type] || r.type);
       const html = () => list().length ? list().map((x, n) => `<div class="cfrow"><span class="cfr">${esc(x.e.ref)}</span><span class="cfl">${esc(tr(label(x.r)))}${x.r.formulae && x.r.type === 'cellIs' ? ' ' + esc(x.r.formulae.join(' – ')) : ''}</span><button type="button" data-n="${n}" class="cfx">✕</button></div>`).join('') : `<div class="note">${tr('لا توجد قواعد')}</div>`;
       await this.form('إدارة قواعد التنسيق الشرطي', `<div class="cflist">${html()}</div>`, [{ label: 'تم', value: true, primary: true }], (d) => {
-        d.addEventListener('click', (ev) => { const b = ev.target.closest('.cfx'); if (!b) return; const x = list()[+b.dataset.n]; x.e.rules.splice(x.j, 1); if (!x.e.rules.length) sh.cf.splice(x.i, 1); sh.cfEdited = true; this.markDirty(p.wb); this.cfRefresh(sh); d.querySelector('.cflist').innerHTML = html(); });
+        d.addEventListener('click', (ev) => { const b = ev.target.closest('.cfx'); if (!b) return; const x = list()[+b.dataset.n]; const bef = structuredClone(sh.cf); x.e.rules.splice(x.j, 1); if (!x.e.rules.length) sh.cf.splice(x.i, 1); sh.cfEdited = true; this.markDirty(p.wb); this.cfRefresh(sh); cfUndo(this, p, bef, structuredClone(sh.cf)); d.querySelector('.cflist').innerHTML = html(); });
       });
     },
   });

@@ -1,6 +1,7 @@
 // شاشة الملف: القوالب في «جديد» وسجل الإصدارات
 import { TEMPLATES } from './templates.js';
-import { tr, lang } from './i18n.js';
+import { tr, lang, settings, saveSettings } from './i18n.js';
+import { applyTheme } from './theme.js';
 import * as store from './store.js';
 import { readXlsx } from './io.js';
 import { esc } from './util.js';
@@ -46,4 +47,61 @@ export function installBackstageExtra(app) {
   });
   const old = app.bsPage.bind(app);
   app.bsPage = function (page) { old(page); if (page === 'new') drawNew(); if (page === 'history') { const has = !!app.pane().wb; const need = document.getElementById('bs-need'); if (need) need.hidden = has; app.renderHistory(); } };
+}
+
+// ===== صفحة الإعدادات داخل شاشة الملف (تُطبَّق فورًا بلا زر حفظ) =====
+
+export function installSettingsPage(app) {
+  const nav = document.querySelector('#backstage .bs-nav'), main = document.querySelector('#backstage .bs-main');
+  const old = nav.querySelector('[data-act="settings"]'); if (old) { old.removeAttribute('data-act'); old.dataset.p = 'settings'; }
+  const sec = document.createElement('section'); sec.dataset.p = 'settings'; sec.hidden = true; main.appendChild(sec);
+  const seg = (id, opts, cur) => `<div class="seg" data-id="${id}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${tr(l)}</button>`).join('')}</div>`;
+  const tog = (id, title, sub, on) => `<label class="st-row"><span><b>${tr(title)}</b>${sub ? `<small>${tr(sub)}</small>` : ''}</span><input type="checkbox" class="sw" data-id="${id}"${on ? ' checked' : ''}></label>`;
+  const row = (title, ctl, sub) => `<div class="st-row"><span><b>${tr(title)}</b>${sub ? `<small>${tr(sub)}</small>` : ''}</span>${ctl}</div>`;
+  const draw = () => {
+    const kp = app.kpActive ? app.kpActive() : false;
+    sec.innerHTML = `<h2>${tr('الإعدادات')}</h2>
+    <h4>${tr('اللغة والاتجاه')}</h4>
+    ${row('لغة الواجهة', seg('lang', [['ar', 'العربية'], ['en', 'English']], settings.lang))}
+    ${row('اتجاه الأوراق الجديدة', seg('newRtl', [['1', 'من اليمين إلى اليسار'], ['0', 'من اليسار إلى اليمين']], settings.newRtl ? 1 : 0))}
+    <h4>${tr('المظهر')}</h4>
+    ${row('المظهر', seg('theme', [['light', '☀ فاتح'], ['dark', '🌙 داكن'], ['system', '⚙ حسب الجهاز']], settings.theme || 'system'))}
+    ${row('الوضع الداكن يشمل', seg('darkSheet', [['1', 'الشيت كله'], ['0', 'القوائم والواجهة فقط']], settings.darkSheet ? 1 : 0), '«القوائم والواجهة فقط» تُبقي ورقة العمل بيضاء كما في الورق، والباقي داكن.')}
+    ${tog('grid', 'خطوط الشبكة', 'إظهار خطوط الخلايا في الورقة', settings.grid !== false)}
+    <h4>${tr('الكتابة ولوحة المفاتيح')}</h4>
+    ${tog('keypad', 'لوحة الأرقام المخصصة', 'تظهر عند تحديد خلية بدل كيبورد الجهاز، وفيها حروف عربية وإنجليزية', kp)}
+    ${row('مكان لوحة الأرقام', seg('kpSide', [['right', 'يمين'], ['left', 'يسار']], settings.kpSide === 'left' ? 'left' : 'right'), 'على الشاشات العريضة تظهر كصندوق صغير على جانب الشاشة')}
+    ${tog('handles', 'مقابض التحديد', 'دوائر الزوايا وشريط التعبئة', settings.handles !== false)}
+    ${tog('miniBar', 'شريط النسخ واللصق العائم', 'ضغطة مطولة أو لمسة على التحديد', settings.miniBar !== false)}
+    <h4>${tr('الحفظ')}</h4>
+    ${tog('autoFile', 'الحفظ التلقائي في الملف', 'يحفظ تلقائيًا داخل الملف نفسه بعد كل تعديل (للملفات المفتوحة من الجهاز)', settings.autoFile === true)}
+    <h4>${tr('البيانات')}</h4>
+    <div class="st-row"><span><b>${tr('مسح قائمة الملفات الأخيرة')}</b></span><button class="mini" data-do="recents">${tr('مسح')}</button></div>
+    <div class="st-row"><span><b>${tr('إعادة الإعدادات للافتراضي')}</b><small>${tr('لا تمس ملفاتك')}</small></span><button class="mini" data-do="reset">${tr('إعادة')}</button></div>
+    <h4>${tr('حول')}</h4>
+    <div class="st-row"><span><b>${tr('جداول')} · Jadawel</b><small>${tr('بديل Excel يعمل على الجهاز، ملفاتك لا تغادر جهازك')}</small></span></div>`;
+  };
+  draw();
+  const apply = () => { applyTheme(); app.applyGrid(); app.panes.forEach((q) => q.applyPrefs && q.applyPrefs()); app.syncKbd && app.syncKbd(); };
+  sec.addEventListener('click', async (e) => {
+    const b = e.target.closest('.seg button');
+    if (b) {
+      const id = b.parentElement.dataset.id, v = b.dataset.v;
+      if (id === 'lang') { app.applyLang(v); draw(); return; }
+      if (id === 'newRtl') saveSettings({ newRtl: v === '1' });
+      else if (id === 'darkSheet') saveSettings({ darkSheet: v === '1' });
+      else saveSettings({ [id]: v });
+      draw(); apply(); return;
+    }
+    const d = e.target.closest('[data-do]');
+    if (d && d.dataset.do === 'recents') { const m = await import('./recents.js'); await m.clearRecents(); app.toast('تم المسح'); }
+    if (d && d.dataset.do === 'reset') { try { localStorage.removeItem('jadawel-settings'); } catch (er) { /* لا بأس */ } Object.keys(settings).forEach((k) => { if (k !== 'lang') delete settings[k]; }); settings.newRtl = true; apply(); draw(); app.toast('أُعيدت الإعدادات'); }
+  });
+  sec.addEventListener('change', (e) => {
+    const c = e.target.closest('.sw'); if (!c) return; const id = c.dataset.id, v = c.checked;
+    if (id === 'grid') saveSettings({ grid: v }); else if (id === 'keypad') saveSettings({ keypad: v }); else saveSettings({ [id]: v });
+    apply();
+  });
+  const prev = app.bsPage.bind(app);
+  app.bsPage = function (page) { prev(page); if (page === 'settings') draw(); };
 }

@@ -26,6 +26,7 @@ function readStyle(cell) {
   const al = cell.alignment;
   if (al && ['left', 'center', 'right'].includes(al.horizontal)) s.al = al.horizontal;
   if (al && al.wrapText) s.wrap = 1;
+  if (al && al.shrinkToFit) s.fit = 1;
   if (cell.numFmt && cell.numFmt !== 'General') s.nf = cell.numFmt;
   const bd = cell.border;
   if (bd) { let t = ''; if (bd.top && bd.top.style) t += 't'; if (bd.bottom && bd.bottom.style) t += 'b'; if (bd.left && bd.left.style) t += 'l'; if (bd.right && bd.right.style) t += 'r'; if (t) s.bd = t; }
@@ -57,6 +58,8 @@ async function readXlsxExcelJS(buffer, name) {
     const sh = newSheet(ws.name, !!(ws.views && ws.views[0] && ws.views[0].rightToLeft));
     { const v = ws.views && ws.views[0]; if (v && v.state === 'frozen' && (v.xSplit || v.ySplit)) sh.freeze = { rows: v.ySplit || 0, cols: v.xSplit || 0 }; }
     { const cfs = ws.conditionalFormattings; if (cfs && cfs.length) sh.cf = cfs.map((e) => ({ ref: e.ref, rules: (e.rules || []).map((r) => Object.assign({}, r)) })); }
+    { const nt = {}; ws.eachRow({ includeEmpty: false }, (row, rn) => row.eachCell({ includeEmpty: false }, (cell, cn) => { const n = cell.note; if (!n) return; const t = typeof n === 'string' ? n : (n.texts || []).map((x) => x.text).join(''); if (t) nt[(rn - 1) + ',' + (cn - 1)] = t; })); if (Object.keys(nt).length) sh.notes = nt; }
+    if (ws.sheetProtection) sh.protect = true;
     sh.origId = ws.id; sh.tabColor = argb(ws.properties && ws.properties.tabColor);
     ws.eachRow({ includeEmpty: false }, (row, rn) => {
       if (row.height) sh.rowH[rn - 1] = Math.round(row.height * 4 / 3);
@@ -109,6 +112,7 @@ function applyStyle(ec, s) {
   }
   if ('fill' in s) ec.fill = s.fill ? { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(s.fill) } } : { type: 'pattern', pattern: 'none' };
   if ('al' in s) ec.alignment = Object.assign({}, ec.alignment, { horizontal: s.al || undefined });
+  if ('fit' in s) ec.alignment = Object.assign({}, ec.alignment, { shrinkToFit: !!s.fit });
   if ('wrap' in s) ec.alignment = Object.assign({}, ec.alignment, { wrapText: !!s.wrap });
   if (s.nf) ec.numFmt = s.nf;
   if ('bd' in s) { const b = s.bd || '', o = {}; const th = { style: 'thin', color: { argb: 'FF000000' } }; if (b.includes('t')) o.top = th; if (b.includes('b')) o.bottom = th; if (b.includes('l')) o.left = th; if (b.includes('r')) o.right = th; ec.border = o; }
@@ -135,6 +139,9 @@ export async function writeXlsx(wb) {
       ws.views = [sh.freeze && (sh.freeze.rows || sh.freeze.cols) ? Object.assign(v0, { state: 'frozen', xSplit: sh.freeze.cols || undefined, ySplit: sh.freeze.rows || undefined, topLeftCell: (colLetter(sh.freeze.cols) + (sh.freeze.rows + 1)) }) : Object.assign(v0, { state: 'normal' })];
     }
     if (sh.cfEdited) ws.conditionalFormattings = (sh.cf || []).map((e) => ({ ref: e.ref, rules: e.rules }));
+    if (sh.notesTouched && sh.notesTouched.size) for (const k of sh.notesTouched) { const [r, c] = unkey(k); const ec = ws.getCell(r + 1, c + 1); const t = (sh.notes || {})[k]; if (t) ec.note = t; else ec._comment = undefined; }
+    else if (all && sh.notes) for (const [k, t] of Object.entries(sh.notes)) { const [r, c] = unkey(k); ws.getCell(r + 1, c + 1).note = t; }
+    if (sh.protectEdited) { if (sh.protect) await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true }); else ws.unprotect(); }
     keep.add(ws.id);
     const keys = all ? sh.cells.keys() : sh.edited;
     for (const k of keys) {
@@ -170,7 +177,7 @@ export async function rebaseAfterSave(wb, buffer) {
   if (wb.sheets.some((s) => s.charts && s.charts.length)) buffer = await stripDrawings(buffer);
   await x.xlsx.load(buffer);
   const ids = x.worksheets.map((w) => w.id);
-  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
+  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.notesTouched = null; sh.protectEdited = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
   wb.orig = buffer; wb.kind = 'xlsx';
 }
 

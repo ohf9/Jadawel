@@ -17,6 +17,7 @@ const MIN_W = 160, MIN_H = 110;
 function fpos(arr, f) { const n = arr.length - 1; if (f <= 0) return 0; const i = Math.min(n - 1, Math.floor(f)); return arr[i] + (f - i) * (arr[i + 1] - arr[i]); }
 function ffrom(arr, x) { const n = arr.length - 1; if (x <= 0) return 0; let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (arr[m] <= x) lo = m; else hi = m - 1; } if (lo >= n) return n; const w = arr[lo + 1] - arr[lo]; return lo + (w > 0 ? (x - arr[lo]) / w : 0); }
 
+const cl = (x) => structuredClone(x || []);
 export function installCharts(Pane, App) {
   const P = Pane.prototype;
 
@@ -70,6 +71,7 @@ export function installCharts(Pane, App) {
     for (const ev of ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'click']) bar.addEventListener(ev, (e) => e.stopPropagation(), ev === 'touchstart' || ev === 'touchend' ? { passive: true } : false);
     bar.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
+      const before = cl(this.sh.charts); this._cb = before;
       if (b.dataset.t) { ch.spec.type = b.dataset.t; if (b.dataset.t === 'pie' || b.dataset.t === 'scatter') ch.spec.stacked = false; this.app.chartChanged(this, ch); }
       else if (b.dataset.a === 'title') this.app.chartTitle(this, ch);
       else if (b.dataset.a === 'data') this.app.chartData(this, ch);
@@ -90,7 +92,7 @@ export function installCharts(Pane, App) {
       if (!was) { this.selChart = ch.id; this.renderCharts(); return; }
       e.preventDefault();
       const rtl = this.sh.rtl, sx = e.clientX, sy = e.clientY, r0 = this.chartRect(ch); let moved = false, last = null;
-      const kind = hnd ? hnd.dataset.k : 'move';
+      const kind = hnd ? hnd.dataset.k : 'move'; const dragBefore = cl(this.sh.charts);
       d.setPointerCapture(e.pointerId);
       const mv = (ev) => {
         let dx = ev.clientX - sx; if (rtl) dx = -dx; const dy = ev.clientY - sy;
@@ -116,7 +118,7 @@ export function installCharts(Pane, App) {
       };
       const up = () => {
         d.removeEventListener('pointermove', mv); d.removeEventListener('pointerup', up); d.removeEventListener('pointercancel', up);
-        if (moved && last) { this.setChartRect(ch, last.x, last.y, last.w, last.h); ch.anchorEdited = true; this.app.markDirty(this.wb); this.renderCharts(); }
+        if (moved && last) { this.setChartRect(ch, last.x, last.y, last.w, last.h); ch.anchorEdited = true; this.app.markDirty(this.wb); this.app.chartCommit(this, dragBefore); this.renderCharts(); }
       };
       d.addEventListener('pointermove', mv); d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up);
     });
@@ -135,25 +137,32 @@ export function installCharts(Pane, App) {
       const ch = { id: chartId(), spec, xml: null, anchor: { c1: 0, r1: 0, c2: 1, r2: 1 }, anchorEdited: true };
       p.setChartRect(ch, x, y, w, h);
       void vis;
-      (sh.charts = sh.charts || []).push(ch);
+      const bef = cl(sh.charts); (sh.charts = sh.charts || []).push(ch); this.chartCommit(p, bef);
       p.selChart = ch.id; this.markDirty(p.wb); p.renderCharts();
       this.toast('أُدرج الرسم — اسحبه لتحريكه، ومن الشريط فوقه غيّر النوع والعنوان');
       return ch;
     },
-    chartChanged(p, ch) { ch.xml = null; this.markDirty(p.wb); p.renderCharts(); },
+    chartCommit(p, before) {
+      const sh = p.sh, after = cl(sh.charts), app = this;
+      const set = (v) => () => { sh.charts = cl(v); p.selChart = null; };
+      this.pushUndoFn(p.wb, sh, set(before), set(after));
+    },
+    chartChanged(p, ch, before) { const b = before || p._cbx || this._cb; ch.xml = null; this.markDirty(p.wb); p.renderCharts(); if (b) this.chartCommit(p, b); this._cb = null; p._cbx = null; },
     async chartTitle(p, ch) {
+      const bef = this._cb || cl(p.sh.charts);
       const r = await this.form('عنوان الرسم', `<label class="field"><span>${tr('العنوان')}</span><input type="text" class="ctitle" value="${esc(ch.spec.title || '')}"></label>`, [{ label: 'موافق', value: true, primary: true }, { label: 'إلغاء', value: null }], (d) => { const i = d.querySelector('input'); i.focus(); i.select(); });
-      if (!r) return; ch.spec.title = r.el.querySelector('input').value.trim(); this.chartChanged(p, ch);
+      if (!r) return; ch.spec.title = r.el.querySelector('input').value.trim(); this.chartChanged(p, ch, bef);
     },
     chartData(p, ch) {
+      const bef = this._cb || cl(p.sh.charts);
       const sp = specFromSelection(p.sh, p.range(), ch.spec.type);
       if (!sp) return this.toast('حدد الخلايا التي تريدها كبيانات للرسم ثم اضغط «البيانات»');
-      delete sp.area; sp.stacked = ch.spec.stacked; sp.doughnut = ch.spec.doughnut; ch.spec = sp; this.chartChanged(p, ch);
+      delete sp.area; sp.stacked = ch.spec.stacked; sp.doughnut = ch.spec.doughnut; ch.spec = sp; this.chartChanged(p, ch, bef);
     },
     async deleteChart(p, id) {
       const sh = p.sh; const i = (sh.charts || []).findIndex((c) => c.id === id); if (i < 0) return;
       const r = await this.dialog('حذف الرسم البياني', 'سيُحذف الرسم من هذه الورقة. البيانات نفسها تبقى كما هي.', [{ label: 'حذف', value: true, primary: true }, { label: 'إلغاء', value: false }]);
-      if (!r) return; sh.charts.splice(i, 1); p.selChart = null; this.markDirty(p.wb); this.panes.forEach((q) => { if (q.sh === sh) q.renderCharts(); });
+      if (!r) return; const bef = cl(sh.charts); sh.charts.splice(i, 1); this.chartCommit(p, bef); p.selChart = null; this.markDirty(p.wb); this.panes.forEach((q) => { if (q.sh === sh) q.renderCharts(); });
     },
   });
 }

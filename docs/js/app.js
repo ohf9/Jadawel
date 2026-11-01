@@ -12,8 +12,9 @@ import { applyTheme } from './theme.js';
 import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { install as installTools } from './tools.js';
-import { installBackstageExtra } from './bsextra.js';
+import { installBackstageExtra, installSettingsPage } from './bsextra.js';
 import { installPivot } from './pivot.js';
+import { installReview } from './review.js';
 import { installCF } from './cf.js';
 import { installFreeze } from './freeze.js';
 import { installCharts } from './chartui.js';
@@ -116,6 +117,7 @@ const app = window.app = {
 
   // ---------- التعديلات والتراجع ----------
   applyChanges(wb, sh, changes, record = true) {
+    if (sh.protect && record) { this.toast('الورقة محمية. ألغِ الحماية من تبويب مراجعة لتعديلها.'); return []; }
     const before = [];
     let mr = 0, mc = 0;
     for (const ch of changes) {
@@ -138,13 +140,20 @@ const app = window.app = {
     this.panes.forEach((p) => { if (p.wb === wb) p.refreshHead(); });
     this.renderTabs(); this.scheduleSave(wb);
   },
+  // تراجع لعمليات الكائنات (رسوم، تنسيق شرطي، تثبيت...): دالتا تراجع وإعادة
+  pushUndoFn(wb, sh, undo, redo) {
+    if (!this.undo.has(wb.id)) this.undo.set(wb.id, []);
+    this.undo.get(wb.id).push({ sheetId: sh.id, fn: { undo, redo } }); this.redo.set(wb.id, []);
+  },
   undoRedo(redo) {
     const p = this.pane(); if (!p.wb) return;
     if (p.editing) p.commitEdit();
+    if (!this.undo.has(p.wb.id)) this.undo.set(p.wb.id, []); if (!this.redo.has(p.wb.id)) this.redo.set(p.wb.id, []);
     const from = (redo ? this.redo : this.undo).get(p.wb.id), to = (redo ? this.undo : this.redo).get(p.wb.id);
     const op = from.pop(); if (!op) return this.toast(redo ? 'لا يوجد ما يُعاد' : 'لا يوجد ما يُتراجع عنه');
     const sh = p.wb.sheets.find((s) => s.id === op.sheetId);
     if (!sh) return this.toast('الورقة المرتبطة بهذا التعديل حُذفت');
+    if (op.fn) { try { (redo ? op.fn.redo : op.fn.undo)(); } catch (e) { console.error('undo', e); } to.push(op); this.markDirty(p.wb); this.panes.forEach((q) => { if (q.wb === p.wb) { q.block = null; q.render(true); q.updateSel(); } }); return; }
     if (op.snap) { this.restoreSnap(p.wb, sh, redo ? op.snap.after : op.snap.before); to.push(op); if (p.sh !== sh) p.setSheet(p.wb.sheets.indexOf(sh)); return; }
     const list = redo ? op.after : op.before;
     this.applyChanges(p.wb, sh, list, false);
@@ -334,7 +343,7 @@ const app = window.app = {
   toggleStyle(k) {
     const p = this.pane(); if (!p.sh) return; const g = p.range(); let all = true;
     for (let r = g.r1; r <= g.r2 && all; r++) for (let c = g.c1; c <= g.c2; c++) { const cell = p.sh.cells.get(key(r, c)); if (!(cell && cell.s && cell.s[k])) { all = false; break; } }
-    this.formatSel(p, (st) => { if (all) delete st[k]; else st[k] = 1; });
+    this.formatSel(p, (st) => { if (all) { if (k === 'fit') st[k] = 0; else delete st[k]; } else st[k] = 1; });
     if (k === 'wrap' && !all) this.fitWrapRows(p, g);
   },
   // التفاف النص يكبّر الصف تلقائيًا ليظهر كل النص (كما في Excel)
@@ -617,6 +626,10 @@ const app = window.app = {
     try {
       const docs = await store.loadAll();
       if (!docs.length) return;
+      // ملفات حُفظت جلستها قبل دعم الرسوم: نقرأ رسومها من الأصل مرة واحدة
+      for (const d of docs) {
+        if (d.orig && !d.chartsRead) { try { const { readCharts } = await import('./charts.js'); if (!d.sheets.some((x) => x.charts && x.charts.length)) await readCharts(d.orig, d); d.chartsRead = true; if (d.sheets.some((x) => x.charts && x.charts.length) && d.lossy) d.lossy = d.lossy.filter((k) => k !== 'charts'); } catch (e) { console.warn('restore charts', e); } }
+      }
       for (const d of docs) { d.handle = rehydrate(d.handle); d.sheets.forEach((s) => { s.edited = s.edited || new Set(); }); this.wbs.push(d); this.undo.set(d.id, []); this.redo.set(d.id, []); }
       const m = (await store.getMeta('layout')) || {};
       const byId = (id) => this.wbs.find((w) => w.id === id);
@@ -968,7 +981,7 @@ const app = window.app = {
     $('#backstage .bs-nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.p) this.bsPage(b.dataset.p); else if (b.dataset.act) this.bsAct(b.dataset.act); });
     // تبويبات الشريط: ملف (يفتح شاشة الملفات) / الرئيسية / عرض
     document.querySelector('.rtabs').addEventListener('click', (e) => { const b = e.target.closest('[data-rt]'); if (b) this.ribbonTab(b.dataset.rt); });
-    this.ribbonTab(['view', 'insert', 'formulas', 'data'].includes(localStorage.getItem('jadawel-rtab')) ? localStorage.getItem('jadawel-rtab') : 'home', true);
+    this.ribbonTab(['view', 'insert', 'formulas', 'data', 'draw', 'review'].includes(localStorage.getItem('jadawel-rtab')) ? localStorage.getItem('jadawel-rtab') : 'home', true);
     on('#fm-wrap', () => this.toggleStyle('wrap')); on('#btn-autosum', () => this.autoSum()); on('#btn-clear', () => { const p = this.pane(); if (p.sh) { this.clearRange(p); p.focus(); } });
     on('#btn-grid', () => { saveSettings({ grid: settings.grid === false }); this.applyGrid(); }); on('#btn-dir', () => this.toggleDir(this.pane())); on('#btn-share', () => this.showBackstage('share'));
     this.applyGrid();
@@ -1062,8 +1075,10 @@ const app = window.app = {
 installTools(app);
 installCharts(Pane, app);
 installFreeze(Pane, app);
+installReview(app, Pane);
 installCF(app);
 installPivot(app);
 app.init();
 installKbd(app); installUnsup(app);
 installBackstageExtra(app);
+installSettingsPage(app);

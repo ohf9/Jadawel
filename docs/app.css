@@ -423,3 +423,31 @@ dialog[open]{animation:dlgIn .24s cubic-bezier(.2,.85,.25,1)}dialog[open]::backd
 .hist-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}.hist-row small{display:block;color:var(--muted);margin-top:2px}.bs-note{color:var(--muted);margin:0 0 12px}
 @media (min-width:900px){.rg-label{display:block;font-size:10.5px;padding:0 0 2px;line-height:1.2;white-space:nowrap}}
 #kbd[data-layer=ar] .kr:not(:last-child){direction:rtl}
+
+/* ===== شاشة الملف على نمط Excel: شريط جانبي دائم حتى في نصف الشاشة ===== */
+#backstage{flex-direction:row!important}
+.bs-nav{overflow-y:auto;scrollbar-width:none}.bs-nav::-webkit-scrollbar{display:none}
+@media (max-width:900px){.bs-nav{width:178px!important;padding:10px 6px!important}.bs-nav button{padding:10px 10px!important;gap:10px!important;font-size:14px!important;min-height:42px!important}.bs-main{padding:16px 16px!important}.bs-main h2{font-size:22px!important}}
+@media (max-width:520px){.bs-nav{width:56px!important;align-items:center}.bs-nav button span{display:none!important}.bs-nav button{padding:10px!important;justify-content:center;width:44px}.bs-nav button.on::before{display:none}.bs-nav button.on{background:rgba(255,255,255,.28)}}
+.bs-main h4{margin:24px 0 6px;font-size:13px;letter-spacing:.3px;color:var(--accent);font-weight:700;text-transform:uppercase}
+.st-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 4px;border-bottom:1px solid var(--line);max-width:760px}
+.st-row b{display:block;font-weight:600;font-size:15px}.st-row small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5}
+.seg{display:inline-flex;background:var(--hdr);border-radius:10px;padding:3px;gap:2px;flex:none;flex-wrap:wrap}
+.seg button{border:0;background:transparent;border-radius:8px;padding:8px 14px;font-size:13.5px;color:var(--text);min-height:36px}.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+input.sw{appearance:none;-webkit-appearance:none;width:46px;height:26px;border-radius:13px;background:var(--hdr);border:1px solid var(--line);position:relative;flex:none;transition:background .18s;cursor:pointer}
+input.sw::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:inset-inline-start .18s}
+input.sw:checked{background:var(--accent);border-color:var(--accent)}input.sw:checked::after{inset-inline-start:22px}
+.bs-cards .card{border-radius:14px}
+#bs-list .rec,#bs-list>*{transition:background .15s}
+
+/* ===== ملاحظات ورسم يدوي ===== */
+.notes,.ink{position:absolute;inset:0;pointer-events:none}
+.ink{z-index:4}.ink.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.ink svg{position:absolute;inset-inline-start:0;top:0;overflow:visible;pointer-events:none}
+.ntri{position:absolute;width:0;height:0;border-style:solid;border-width:0 9px 9px 0;border-color:transparent #d32f2f transparent transparent;pointer-events:none}
+[dir=rtl] .scroller[dir=rtl] .ntri{border-width:0 0 9px 9px;border-color:transparent transparent transparent #d32f2f}
+.nbub{position:absolute;max-width:240px;background:#fff9c4;color:#222;border:1px solid #cfc050;border-radius:6px;padding:6px 9px;font-size:13px;line-height:1.5;box-shadow:0 3px 10px rgba(0,0,0,.25);z-index:7;pointer-events:none;white-space:pre-wrap}
+.nbub.live{display:none}
+.dotc{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.3)}
+.rg-note{max-width:230px;font-size:12px;color:var(--muted);line-height:1.5;padding:4px 8px}
+.rb.on{background:var(--accent2);border-color:var(--on-b,var(--accent))}

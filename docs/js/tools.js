@@ -7,6 +7,7 @@ import { openPopover, closePopover } from './ui.js';
 import { sigEn } from './i18n-more.js';
 import { chartIcon } from './chartui.js';
 import { CHART_TYPES } from './charts.js';
+import { REVIEW_RIBBON, DRAW_RIBBON } from './review.js';
 import { FN_CATS, FNS, ALL_FNS } from './fnlib.js';
 
 const $ = (s) => document.querySelector(s);
@@ -42,6 +43,11 @@ const ICONS = {
   freeze: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M4 10h16M10 4v16" stroke-width="3" opacity=".35"/>',
   cf: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.6h16"/><path d="M4 4h16v5.3H4z" fill="currentColor" opacity=".3"/>',
   pivot: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M13 13h4M13 16h4"/>',
+  fit: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M7 12h10M9 10l-2 2 2 2M15 10l2 2-2 2"/>',
+  note: '<path d="M5 4h14v12H10l-4 4v-4H5z"/><path d="M9 8h6M9 12h4"/>',
+  notedel: '<path d="M5 4h14v12H10l-4 4v-4H5z"/><path d="M9 10h6"/>',
+  noteshow: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
   fillc: '<path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 20h14"/>',
 };
 const NO_ICON = new Set();
@@ -86,7 +92,7 @@ function this_restructure(rib) {
   const mv = (g, sel, to) => { const el = g && g.querySelector(sel); if (el && to) body(to).append(el); return el; };
   const gClip = has('#btn-paste'), gFont = has('#fm-font'), gAl = has('#fm-al'), gNum = has('#fm-nf'), gAuto = has('#btn-autosum'), gNfb = has('[data-act^="nf:"]');
   const gMrg = has('[data-act=mergeMenu]'), gFill = has('[data-act=fillMenu]'), gSort = has('[data-act=sortMenu]');
-  mv(gMrg, '[data-act=borderMenu]', gFont); mv(gMrg, '[data-act=mergeMenu]', gAl);
+  mv(gMrg, '[data-act=borderMenu]', gFont); if (gAl) { const fb = document.createElement('div'); fb.innerHTML = B('fitToggle', 'fit', 'ملاءمة', 'تصغير الخط تلقائيًا ليتسع النص داخل الخلية', 'sm'); (gAl.querySelectorAll('.col2 .row')[1] || body(gAl)).append(fb.firstChild); } mv(gMrg, '[data-act=mergeMenu]', gAl);
   if (gNfb) { const c = gNfb.querySelector('.col2'); if (c) body(gNum).prepend(c); gNfb.remove(); }
   const mk = (html) => { const d = document.createElement('div'); d.className = 'rg'; d.innerHTML = `<div class="rg-body">${html}</div>`; return d; };
   const gSty = mk(B('cfMenu', 'cf', 'تنسيق شرطي', 'تمييز الخلايا تلقائيًا حسب قيمتها: ألوان، أشرطة، تدرجات')); if (gMrg) gMrg.remove();
@@ -99,6 +105,8 @@ function this_restructure(rib) {
     home: [['#btn-paste', 'الحافظة'], ['#fm-font', 'الخط'], ['#fm-al', 'المحاذاة'], ['#fm-nf', 'الرقم'], ['[data-act=cfMenu]', 'الأنماط'], ['[data-act=insMenu]', 'الخلايا'], ['[data-act=sumMenu]', 'التعديل']],
     insert: [['[data-act=pivot]', 'الجداول'], ['[data-act=insRow]', 'الخلايا'], ['[data-act^="chart:"]', 'الرسوم البيانية'], ['[data-act=newSheet]', 'الأوراق'], ['[data-act=fnDialog]', 'الدوال']],
     formulas: [['[data-act=sumMenu]', 'مكتبة الدوال'], ['[data-act^="lib:"]', 'فئات الدوال'], ['[data-act=showF]', 'تدقيق الصيغ']],
+    draw: [['[data-act^="ink:pen"]', 'الأقلام'], ['[data-act="ink:hl:#ffeb3b"]', 'أدوات'], ['[data-act="ink:off"]', 'وضع']],
+    review: [['[data-act=noteNew]', 'الملاحظات'], ['[data-act=protect]', 'الحماية']],
     data: [['[data-act=sortAZ]', 'ترتيب'], ['[data-act=filter]', 'تصفية'], ['[data-act=removeDup]', 'أدوات البيانات']],
     view: [['[data-layout-btn]', 'النوافذ'], ['#btn-grid', 'إظهار'], ['[data-act=zoomIn]', 'التكبير'], ['[data-act=freezeMenu]', 'النافذة'], ['[data-act=swapPanes]', 'النوافذ']],
   };
@@ -114,9 +122,10 @@ export function install(app) {
   // ----- بناء الأشرطة -----
   const build = () => {
     const rt = document.querySelector('.rtabs');
-    rt.innerHTML = '<button data-rt="file" role="tab">ملف</button><button data-rt="home" role="tab" class="on">الرئيسية</button><button data-rt="insert" role="tab">إدراج</button><button data-rt="formulas" role="tab">صيغ</button><button data-rt="data" role="tab">بيانات</button><button data-rt="view" role="tab">عرض</button>';
+    rt.innerHTML = '<button data-rt="file" role="tab">ملف</button><button data-rt="home" role="tab" class="on">الرئيسية</button><button data-rt="insert" role="tab">إدراج</button><button data-rt="draw" role="tab">رسم</button><button data-rt="formulas" role="tab">صيغ</button><button data-rt="data" role="tab">بيانات</button><button data-rt="review" role="tab">مراجعة</button><button data-rt="view" role="tab">عرض</button>';
     const rib = document.querySelector('.ribbon');
-    for (const t of ['insert', 'formulas', 'data']) { const d = document.createElement('div'); d.className = 'rpanel'; d.dataset.t = t; d.hidden = true; d.innerHTML = RIBBON[t]; rib.insertBefore(d, rib.querySelector('[data-t=view]')); }
+    RIBBON.draw = DRAW_RIBBON(B, G); RIBBON.review = REVIEW_RIBBON(B, G);
+    for (const t of ['insert', 'draw', 'formulas', 'data', 'review']) { const d = document.createElement('div'); d.className = 'rpanel'; d.dataset.t = t; d.hidden = true; d.innerHTML = RIBBON[t]; rib.insertBefore(d, rib.querySelector('[data-t=view]')); }
     rib.querySelector('[data-t=home]').insertAdjacentHTML('beforeend', HOME_EXTRA);
     rib.querySelector('[data-t=view]').insertAdjacentHTML('beforeend', VIEW_EXTRA);
     // الأيقونات تُحقن في الأزرار الأساسية الموجودة أصلًا في الصفحة
@@ -151,6 +160,13 @@ export function install(app) {
         case 'insMenu': return this.menu(btn, [{ t: 'إدراج صفوف', f: () => this.insertLines(p, 'r') }, { t: 'إدراج أعمدة', f: () => this.insertLines(p, 'c') }, { t: 'إدراج ورقة', f: () => this.addSheet(p) }]);
         case 'delMenu': return this.menu(btn, [{ t: 'حذف صفوف', f: () => this.deleteLines(p, 'r') }, { t: 'حذف أعمدة', f: () => this.deleteLines(p, 'c') }]);
         case 'pivot': return this.pivotDialog(p);
+        case 'fitToggle': return this.toggleStyle('fit');
+        case 'ink': return this.setInk(arg, a === 'ink' ? name.split(':').slice(2).join(':') : undefined);
+        case 'inkClear': return this.inkClear(p);
+        case 'noteNew': return this.noteNew(p);
+        case 'noteDel': return this.noteDel(p);
+        case 'noteShow': return this.noteShow(p);
+        case 'protect': return this.toggleProtect(p);
         case 'newSheet': return this.addSheet(p);
         case 'fnDialog': return this.fnDialog();
         case 'today': return this.putNow(p, 'date');

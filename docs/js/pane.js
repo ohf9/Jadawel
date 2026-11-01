@@ -146,7 +146,7 @@ export class Pane {
       let cls = 'c mg' + (num ? ' n' : ''); if (s && s.fill && !s.color) cls += ' f';
       let st2 = `inset-inline-start:${cx[m.c1]}px;top:${ry[m.r1]}px;width:${w}px;height:${h}px;line-height:${Math.min(h - 1, 22 * z)}px;background:${s && s.fill ? s.fill : 'var(--s-bg)'};` + style(s, cls, num);
       if (h > 30 * z) st2 += `display:flex;align-items:center;`;
-      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;' + this.fitWrap(txt, s, w, h, z); cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
+      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.3;' + this.fitWrap(txt, s, w, h, z); cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
       html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
     }
     for (let r = r0; r <= r1; r++) {
@@ -159,7 +159,7 @@ export class Pane {
         let w = cx[c + 1] - cx[c];
         if (w <= 0) continue;
         // النص يمتد إلى الخلايا الفارغة المجاورة كما في Excel
-        if (!num && txt && !(s && (s.al || s.fill || s.wrap))) {
+        if (!num && txt && !(s && (s.al || s.fill || s.wrap || s.fit))) {
           let k = c + 1; while (k <= c1 + 6 && k < sh.ncols && !cells.has(key(r, k)) && !(mg && this.mergeAt(r, k)) && k - c < 12) { w += cx[k + 1] - cx[k]; k++; }
         }
         const hh = ry[r + 1] - ry[r]; if (hh <= 0) continue;
@@ -170,9 +170,10 @@ export class Pane {
         if (s) {
           st2 += style(s, cls, num);
           if (s.fill && !s.color) cls += ' f';
-          if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;' + (txt ? this.fitWrap(txt, s, w, hh, z) : ''); cls += ' wr'; }
+          if (s.wrap) { st2 += 'white-space:normal;line-height:1.3;padding-top:2px;' + (txt ? this.fitWrap(txt, s, w, hh, z) : ''); cls += ' wr'; }
         }
-        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) st2 += this.shrink(txt, s, w, z);
+        let sEff = s; { const bp0 = ((s && s.sz) || 11) * 4 / 3 * z; if (!(s && s.wrap) && txt && bp0 * 1.3 > hh) { const k = hh / (bp0 * 1.3); sEff = Object.assign({}, s, { sz: ((s && s.sz) || 11) * k }); st2 += `font-size:${(bp0 * k).toFixed(2)}px;`; } }
+        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) st2 += this.shrink(txt, sEff, w, z);
         if (fx && fx.css) st2 += fx.css;
         html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
       }
@@ -209,6 +210,7 @@ export class Pane {
     this.renderFrozen(r0, r1, c0, c1);
     this.renderHeaders();
     if (this.renderCharts) this.renderCharts();
+    if (this.renderExtras) this.renderExtras();
   }
   // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
   measure(txt, s, px) {
@@ -224,9 +226,9 @@ export class Pane {
   }
   // نص ملتفّ: يصغَّر الخط حتى يتسع في ارتفاع الخلية بدل أن يُقطع
   fitWrap(txt, s, w, h, z) {
-    const base = ((s && s.sz) || 11) * 4 / 3 * z, avail = Math.max(8, w - 10 * z), maxH = h - 3 * z;
+    const base = ((s && s.sz) || 11) * 4 / 3 * z, avail = Math.max(8, w - 10 * z), maxH = h - 6 * z;
     const lines = (px) => { let n = 0; for (const para of String(txt).split('\n')) { let cur = 0, l = 1; for (const word of para.split(/\s+/)) { const ww = this.measure(word, s, px), sp = this.measure(' ', s, px); if (cur && cur + sp + ww > avail) { l++; cur = ww; } else cur += (cur ? sp : 0) + ww; if (ww > avail) l += Math.floor(ww / avail); } n += l; } return n; };
-    for (let k = 1; k >= 0.4; k -= 0.06) { const px = base * k; if (lines(px) * px * 1.25 <= maxH) return k < 1 ? `font-size:${px.toFixed(2)}px;` : ''; }
+    for (let k = 1; k >= 0.4; k -= 0.06) { const px = base * k; if (lines(px) * px * 1.3 <= maxH) return k < 1 ? `font-size:${px.toFixed(2)}px;` : ''; }
     return `font-size:${(base * 0.4).toFixed(2)}px;`;
   }
   renderHeaders() {
@@ -271,6 +273,7 @@ export class Pane {
   actBox() { const s = this.sel, m = this.sh.merges && this.mergeAt(s.ar, s.ac); return m && m.r1 === s.ar && m.c1 === s.ac ? m : { r1: s.ar, c1: s.ac, r2: s.ar, c2: s.ac }; }
   updateSel() {
     if (!this.sh) return;
+    if (this.showNoteBubble && this.noteEl) this.showNoteBubble();
     const g = this.range(), s = this.sel;
     this.box(this.selEl, g.r1, g.c1, g.r2, g.c2);
     this.selEl.classList.toggle('multi', g.r1 !== g.r2 || g.c1 !== g.c2);
@@ -323,6 +326,7 @@ export class Pane {
   // ---------- التحرير ----------
   startEdit(initial, mode = 'edit') {
     if (!this.sh || this.editing) return;
+    if (this.sh.protect) { this.app.toast('الورقة محمية. ألغِ الحماية من تبويب مراجعة لتعديلها.'); return; }
     const s = this.sel; this.select(s.ar, s.ac, s.ar, s.ac);
     const cell = this.sh.cells.get(key(s.ar, s.ac));
     this.editing = { r: s.ar, c: s.ac, mode, orig: rawText(cell) };
@@ -477,11 +481,18 @@ export class Pane {
         e.preventDefault();
         if (this.editing) this.commitEdit();
         const { r, c } = t.h; const now = Date.now();
-        if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) { clearTimeout(lastTap.mt); this.select(r, c, r, c, false); this.startEdit(); lastTap = null; }
+        if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) {
+          clearTimeout(lastTap.mt); const n = (lastTap.n || 1) + 1;
+          if (n === 2) { this.select(r, c, r, c, false); this.startEdit(); const kp = this.app.kpActive && this.app.kpActive(); if (kp && this.editing) { this.editor.select(); } lastTap = { r, c, t: now, n }; }
+          else { // الضغطة الثالثة: كيبورد الجهاز الكامل
+            if (!this.editing) { this.select(r, c, r, c, false); this.startEdit(); }
+            if (this.app.openSysKeyboard) this.app.openSysKeyboard(this); lastTap = null;
+          }
+        }
         else {
           const was = this.inSel(r, c) || (this.sel.ar === r && this.sel.ac === c && this.sel.fr === r && this.sel.fc === c);
           if (!was) this.select(r, c, r, c, false);
-          lastTap = { r, c, t: now }; this.focus();
+          lastTap = { r, c, t: now, n: 1 }; this.focus();
           // لمسة على خلية محددة أصلًا تُظهر شريط الأدوات العائم (إن لم تأتِ لمسة ثانية)
           if (was && settings.miniBar !== false) lastTap.mt = setTimeout(() => { if (lastTap && !this.editing) this.app.showMini(this); }, 330);
         }

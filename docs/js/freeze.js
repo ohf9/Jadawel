@@ -29,7 +29,9 @@ export function installFreeze(Pane, App) {
       if (mode === 'sel') { rows = g.r1; cols = g.c1; }
       else if (mode === 'row') rows = 1; else if (mode === 'col') cols = 1;
       if (mode === 'sel' && !rows && !cols) return this.toast('حدد خلية أسفل وإلى جانب ما تريد تثبيته (مثلًا B2 تثبّت الصف الأول والعمود الأول)');
-      sh.freeze = rows || cols ? { rows, cols } : null; sh.freezeEdited = true;
+      const before = sh.freeze ? { ...sh.freeze } : null; sh.freeze = rows || cols ? { rows, cols } : null; sh.freezeEdited = true; const after = sh.freeze ? { ...sh.freeze } : null;
+      const set = (v) => () => { sh.freeze = v ? { ...v } : null; sh.freezeEdited = true; };
+      this.pushUndoFn(p.wb, sh, set(before), set(after));
       this.markDirty(p.wb);
       this.panes.forEach((q) => { if (q.sh === sh) { q.block = null; q.render(true); q.updateSel(); } });
       this.toast(sh.freeze ? 'تم التثبيت' : 'أُلغي التثبيت');
