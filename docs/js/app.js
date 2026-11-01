@@ -11,6 +11,7 @@ import { recalc } from './calc.js';
 import { applyTheme } from './theme.js';
 import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
+import { install as installTools } from './tools.js';
 import { shareBlob, printPage, isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
 async function claimSlot() {
@@ -138,6 +139,7 @@ const app = window.app = {
     const op = from.pop(); if (!op) return this.toast(redo ? 'لا يوجد ما يُعاد' : 'لا يوجد ما يُتراجع عنه');
     const sh = p.wb.sheets.find((s) => s.id === op.sheetId);
     if (!sh) return this.toast('الورقة المرتبطة بهذا التعديل حُذفت');
+    if (op.snap) { this.restoreSnap(p.wb, sh, redo ? op.snap.after : op.snap.before); to.push(op); if (p.sh !== sh) p.setSheet(p.wb.sheets.indexOf(sh)); return; }
     const list = redo ? op.after : op.before;
     this.applyChanges(p.wb, sh, list, false);
     to.push(op);
@@ -606,15 +608,18 @@ const app = window.app = {
 
   // ---------- شاشة الملفات (الأخيرة / جديد / فتح / حفظ باسم) ----------
   async showBackstage(page = 'open') {
-    const b = $('#backstage'); this.hideMini(); closePopover();
+    const b = $('#backstage'); this.hideMini(); closePopover(); clearTimeout(this._bsT);
     b.hidden = false; translateDom(b); requestAnimationFrame(() => b.classList.add('in'));
     this.bsPage(page); const f = b.querySelector('.bs-nav .on') || b.querySelector('.bs-nav button'); if (f) f.focus({ preventScroll: true });
   },
-  hideBackstage() { const b = $('#backstage'); b.classList.remove('in'); setTimeout(() => { b.hidden = true; }, 180); const p = this.pane(); p && p.sh && p.focus(); },
+  hideBackstage() { const b = $('#backstage'); b.classList.remove('in'); clearTimeout(this._bsT); this._bsT = setTimeout(() => { b.hidden = true; }, 220); const p = this.pane(); p && p.sh && p.focus(); },
   bsPage(page) {
     document.querySelectorAll('#backstage .bs-nav [data-p]').forEach((x) => x.classList.toggle('on', x.dataset.p === page));
     document.querySelectorAll('#backstage section').forEach((x) => { x.hidden = x.dataset.p !== page; });
     if (page === 'open') this.renderRecents();
+    const has = !!(this.pane().wb); document.querySelectorAll('#backstage .bs-nav .needs').forEach((x) => x.classList.toggle('dis', !has));
+    const need = $('#bs-need'); if (need) need.hidden = has || !['saveas', 'print', 'share', 'export'].includes(page);
+    if (page === 'print') requestAnimationFrame(() => this.renderPrintPreview());
   },
   ago(t) {
     const m = Math.round((Date.now() - t) / 60000);
@@ -662,20 +667,19 @@ const app = window.app = {
     if (act === 'settings') { this.hideBackstage(); this.openSettings(); return; }
     if (!p.wb) return this.toast('افتح ملفًا أولًا');
     if (act === 'save') { this.hideBackstage(); await this.save(); }
-    else if (act === 'print') this.printSheet();
     else if (act === 'close') { this.hideBackstage(); this.closeWb(p.wb.id); }
   },
   applyGrid() { document.body.classList.toggle('nogrid', settings.grid === false); const b = $('#btn-grid'); if (b) b.classList.toggle('on', settings.grid !== false); },
   // جمع تلقائي: يجمع الأرقام المتصلة فوق الخلية (أو يسارها)، أو يضع المجاميع تحت أعمدة التحديد
-  autoSum() {
+  autoSum(fn = 'SUM') {
     const p = this.pane(); if (!p.sh) return; if (p.editing) p.commitEdit(); const g = p.range(), sh = p.sh;
     const isN = (r, c) => { const x = sh.cells.get(key(r, c)); return x && typeof x.v === 'number'; };
     const ch = [];
     if (g.r1 === g.r2 && g.c1 === g.c2) {
       let r = g.r1 - 1; while (r >= 0 && isN(r, g.c1)) r--; r++;
-      if (r < g.r1) ch.push({ r: g.r1, c: g.c1, f: `SUM(${a1(r, g.c1)}:${a1(g.r1 - 1, g.c1)})` });
-      else { let c = g.c1 - 1; while (c >= 0 && isN(g.r1, c)) c--; c++; if (c < g.c1) ch.push({ r: g.r1, c: g.c1, f: `SUM(${a1(g.r1, c)}:${a1(g.r1, g.c1 - 1)})` }); }
-    } else for (let c = g.c1; c <= g.c2; c++) ch.push({ r: g.r2 + 1, c, f: `SUM(${a1(g.r1, c)}:${a1(g.r2, c)})` });
+      if (r < g.r1) ch.push({ r: g.r1, c: g.c1, f: `${fn}(${a1(r, g.c1)}:${a1(g.r1 - 1, g.c1)})` });
+      else { let c = g.c1 - 1; while (c >= 0 && isN(g.r1, c)) c--; c++; if (c < g.c1) ch.push({ r: g.r1, c: g.c1, f: `${fn}(${a1(g.r1, c)}:${a1(g.r1, g.c1 - 1)})` }); }
+    } else for (let c = g.c1; c <= g.c2; c++) ch.push({ r: g.r2 + 1, c, f: `${fn}(${a1(g.r1, c)}:${a1(g.r2, c)})` });
     if (!ch.length) return this.toast('لا توجد أرقام متصلة لجمعها');
     this.applyChanges(p.wb, sh, ch.map((x) => ({ r: x.r, c: x.c, cell: { f: x.f, v: undefined } })));
     this.flash(p, { r1: ch[0].r, r2: ch[ch.length - 1].r, c1: ch[0].c, c2: ch[ch.length - 1].c }); p.focus();
@@ -696,32 +700,65 @@ const app = window.app = {
       await this.download(ex.blob, ex.name); this.toast('المشاركة غير متاحة هنا، فحُفظت نسخة من الملف');
     } catch (e) { if (e && e.name === 'AbortError') return; console.error(e); this.toast('تعذرت المشاركة: ' + e.message, 6000); }
   },
-  printSheet() {
-    const p = this.pane(); if (!p.sh) return this.toast('افتح ملفًا أولًا'); if (p.editing) p.commitEdit(); this.hideBackstage();
+  printOpts() {
+    const v = (id, d) => { const e = $(id); return e ? (e.type === 'checkbox' ? e.checked : e.value) : d; };
+    return { scope: v('#pr-scope', 'sheet'), ori: v('#pr-ori', 'auto'), paper: v('#pr-paper', 'A4'), fit: v('#pr-fit', true), grid: v('#pr-grid', false) };
+  },
+  // يبني جدول الطباعة (HTML) للورقة الحالية بحسب الخيارات
+  buildPrint(p, o) {
     const sh = p.sh, g = p.range(); let r1 = 0, c1 = 0, r2 = 0, c2 = 0;
-    if (g.r1 !== g.r2 || g.c1 !== g.c2) ({ r1, c1, r2, c2 } = g);
+    if (o.scope === 'sel' && (g.r1 !== g.r2 || g.c1 !== g.c2)) ({ r1, c1, r2, c2 } = g);
     else for (const k of sh.cells.keys()) { const [r, c] = unkey(k); if (r > r2) r2 = r; if (c > c2) c2 = c; }
-    if (r2 - r1 > 4000) { r2 = r1 + 4000; this.toast('طُبعت أول 4000 صف فقط'); }
-    let w = 0; const cols = []; for (let c = c1; c <= c2; c++) { const cw = sh.colW[c] || 96; w += cw; cols.push(`<col style="width:${cw}px">`); }
+    for (const m of sh.merges || []) if (o.scope !== 'sel') { r2 = Math.max(r2, m.r2); c2 = Math.max(c2, m.c2); }
+    if (r2 - r1 > 4000) r2 = r1 + 4000;
+    const hid = (set, i) => set && set.has(i);
+    let w = 0; const cols = [];
+    for (let c = c1; c <= c2; c++) if (!hid(sh.hidCols, c)) { const cw = sh.colW[c] || 96; w += cw; cols.push(`<col style="width:${cw}px">`); }
+    const cover = new Set(), mgs = new Map();
+    for (const m of sh.merges || []) { mgs.set(key(m.r1, m.c1), m); for (let r = m.r1; r <= m.r2; r++) for (let c = m.c1; c <= m.c2; c++) if (r !== m.r1 || c !== m.c1) cover.add(key(r, c)); }
+    const sd = (side) => `border-${side}:1px solid #000;`;
     let rows = '';
     for (let r = r1; r <= r2; r++) {
+      if (hid(sh.hidRows, r)) continue;
       let tds = '';
       for (let c = c1; c <= c2; c++) {
+        if (hid(sh.hidCols, c) || cover.has(key(r, c))) continue;
         const cell = sh.cells.get(key(r, c)); const s = cell && cell.s; const num = cell && (isNumCell(cell) || typeof cell.v === 'boolean');
         let st = '';
-        if (s) { if (s.b) st += 'font-weight:700;'; if (s.i) st += 'font-style:italic;'; if (s.u) st += 'text-decoration:underline;'; if (s.color) st += `color:${s.color};`; if (s.fill) st += `background:${s.fill};`; if (s.font) st += `font-family:${fontCss(s.font)};`; if (s.sz) st += `font-size:${s.sz}pt;`; if (s.al) st += `text-align:${s.al};`; if (s.wrap) st += 'white-space:normal;'; }
+        if (s) { if (s.b) st += 'font-weight:700;'; if (s.i) st += 'font-style:italic;'; if (s.u) st += 'text-decoration:underline;'; if (s.color) st += `color:${s.color};`; if (s.fill) st += `background:${s.fill};-webkit-print-color-adjust:exact;print-color-adjust:exact;`; if (s.font) st += `font-family:${fontCss(s.font)};`; if (s.sz) st += `font-size:${s.sz}pt;`; if (s.al) st += `text-align:${s.al};`; if (s.wrap) st += 'white-space:normal;'; if (s.bd) { if (s.bd.includes('t')) st += sd('top'); if (s.bd.includes('b')) st += sd('bottom'); if (s.bd.includes('l')) st += sd('left'); if (s.bd.includes('r')) st += sd('right'); } }
         if (!(s && s.al)) st += `text-align:${num ? (sh.rtl ? 'left' : 'right') : (sh.rtl ? 'right' : 'left')};`;
-        tds += `<td style="${st}">${cell ? esc(displayText(cell)) : ''}</td>`;
+        const m = mgs.get(key(r, c)); let span = '';
+        if (m) { span = ` colspan="${m.c2 - m.c1 + 1}" rowspan="${m.r2 - m.r1 + 1}"`; if (!(s && s.al)) st += 'text-align:center;'; }
+        tds += `<td${span} style="${st}">${cell ? esc(sh.showF && cell.f != null ? '=' + cell.f : displayText(cell)) : ''}</td>`;
       }
       rows += `<tr style="height:${(sh.rowH[r] || 26) * 0.75}pt">${tds}</tr>`;
     }
+    const PW = { A4: [210, 297], A3: [297, 420], letter: [216, 279] }[o.paper] || [210, 297];
+    const land = o.ori === 'landscape' || (o.ori === 'auto' && w > 700);
+    const pageW = (land ? PW[1] : PW[0]) - 20, pagePx = pageW / 25.4 * 96;
+    const scale = o.fit && w > pagePx ? pagePx / w : 1;
+    return { html: `<table class="${o.grid ? 'pg' : ''}" style="zoom:${scale.toFixed(4)}"><colgroup>${cols.join('')}</colgroup><tbody>${rows}</tbody></table>`, w, land, paper: o.paper, pagePx, scale, truncated: r2 - r1 >= 4000 };
+  },
+  renderPrintPreview() {
+    const p = this.pane(), box = $('#pr-pv'); if (!box) return;
+    if (!p.sh) { box.innerHTML = ''; return; }
+    const o = this.printOpts(), b = this.buildPrint(p, o);
+    const PW = { A4: [210, 297], A3: [297, 420], letter: [216, 279] }[o.paper] || [210, 297];
+    const wmm = b.land ? PW[1] : PW[0], hmm = b.land ? PW[0] : PW[1], pxw = wmm / 25.4 * 96;
+    const host = box.parentElement, avail = Math.max(200, host.clientWidth - 24), k = Math.min(1, avail / pxw);
+    box.style.cssText = `width:${pxw}px;height:${hmm / 25.4 * 96}px;transform:scale(${k});transform-origin:top ${document.documentElement.dir === 'rtl' ? 'right' : 'left'};padding:10mm`;
+    box.dir = p.sh.rtl ? 'rtl' : 'ltr'; box.innerHTML = b.html;
+    host.style.height = (hmm / 25.4 * 96 * k + 24) + 'px';
+  },
+  printSheet() {
+    const p = this.pane(); if (!p.sh) return this.toast('افتح ملفًا أولًا'); if (p.editing) p.commitEdit(); this.hideBackstage();
+    const b = this.buildPrint(p, this.printOpts());
+    if (b.truncated) this.toast('طُبعت أول 4000 صف فقط');
     let area = $('#print-area'); if (!area) { area = document.createElement('div'); area.id = 'print-area'; document.body.appendChild(area); }
-    area.dir = sh.rtl ? 'rtl' : 'ltr';
-    area.innerHTML = `<table><colgroup>${cols.join('')}</colgroup><tbody>${rows}</tbody></table>`;
+    area.dir = p.sh.rtl ? 'rtl' : 'ltr'; area.innerHTML = b.html;
     let ps = $('#print-page'); if (!ps) { ps = document.createElement('style'); ps.id = 'print-page'; document.head.appendChild(ps); }
-    ps.textContent = `@page{size:A4 ${w > 700 ? 'landscape' : 'portrait'};margin:10mm}`;
-    const name = p.wb.name.replace(/\.\w+$/, '');
-    printPage(name);
+    ps.textContent = `@page{size:${b.paper === 'letter' ? 'letter' : b.paper} ${b.land ? 'landscape' : 'portrait'};margin:10mm}`;
+    printPage(p.wb.name.replace(/\.\w+$/, ''));
   },
 
   // ---------- شريط الأدوات العائم ----------
@@ -823,6 +860,11 @@ const app = window.app = {
     if (ctrl && lk === 'o') { e.preventDefault(); this.openDialog(); return; }
     if (ctrl && lk === 'p') { e.preventDefault(); this.printSheet(); return; }
     if (e.altKey && (e.key === '=' || e.code === 'Equal')) { e.preventDefault(); this.autoSum(); return; }
+    if (ctrl && lk === 'f') { e.preventDefault(); this.findDialog(false); return; }
+    if (ctrl && lk === 'h') { e.preventDefault(); this.findDialog(true); return; }
+    if (k === 'F9') { e.preventDefault(); this.calcNow(true); return; }
+    if (ctrl && (k === '`' || e.code === 'Backquote')) { e.preventDefault(); this.toggleShowF(); return; }
+    if (ctrl && (k === ';' || e.code === 'Semicolon') && p.sh && !p.editing) { e.preventDefault(); this.putNow(p, e.shiftKey ? 'time' : 'date'); return; }
     if (ctrl && lk === 'n') { e.preventDefault(); this.newWb(); return; }
     if (k === 'F6' && this.layout !== 'single') { e.preventDefault(); this.setActive(1 - this.active); this.pane().focus(); return; }
     if (!p.sh || p.editing) return;
@@ -866,12 +908,12 @@ const app = window.app = {
     $('#backstage .bs-nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.p) this.bsPage(b.dataset.p); else if (b.dataset.act) this.bsAct(b.dataset.act); });
     // تبويبات الشريط: ملف (يفتح شاشة الملفات) / الرئيسية / عرض
     document.querySelector('.rtabs').addEventListener('click', (e) => { const b = e.target.closest('[data-rt]'); if (b) this.ribbonTab(b.dataset.rt); });
-    this.ribbonTab(localStorage.getItem('jadawel-rtab') === 'view' ? 'view' : 'home', true);
+    this.ribbonTab(['view', 'insert', 'formulas', 'data'].includes(localStorage.getItem('jadawel-rtab')) ? localStorage.getItem('jadawel-rtab') : 'home', true);
     on('#fm-wrap', () => this.toggleStyle('wrap')); on('#btn-autosum', () => this.autoSum()); on('#btn-clear', () => { const p = this.pane(); if (p.sh) { this.clearRange(p); p.focus(); } });
     on('#btn-grid', () => { saveSettings({ grid: settings.grid === false }); this.applyGrid(); }); on('#btn-dir', () => this.toggleDir(this.pane())); on('#btn-share', () => this.showBackstage('share'));
     this.applyGrid();
     on('#bs-share-x', () => this.share('xlsx')); on('#bs-share-c', () => this.share('csv')); on('#bs-share-p', () => this.printSheet());
-    on('#bs-exp-pdf', () => this.printSheet()); on('#bs-exp-x', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'xlsx'); } }); on('#bs-exp-c', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'csv'); } });
+    on('#bs-exp-pdf', () => this.printSheet()); ['#pr-scope', '#pr-ori', '#pr-paper', '#pr-fit', '#pr-grid'].forEach((id) => { const e = $(id); e && e.addEventListener('change', () => this.renderPrintPreview()); }); on('#pr-go', () => this.printSheet()); on('#bs-exp-x', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'xlsx'); } }); on('#bs-exp-c', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'csv'); } });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backstage').hidden) { e.stopPropagation(); this.hideBackstage(); } }, true);
     $('#backstage').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('rec')) { e.preventDefault(); this.openRecent(+e.target.dataset.i); } });
     $('#bs-list').addEventListener('click', async (e) => {
@@ -955,4 +997,5 @@ const app = window.app = {
   prompt(title, value) { return this.dialog(title, '', [{ label: 'موافق', value: true, primary: true }, { label: 'إلغاء', value: false }], value); },
 };
 
+installTools(app);
 app.init();

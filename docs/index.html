@@ -36,7 +36,7 @@
 </defs></svg>
 
 <header class="titlebar">
-  <span class="brand"><svg class="logo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="#fff"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16" stroke="#1e6b41" stroke-width="1.6"/></svg>جداول</span>
+  <span class="brand"><img class="logo" src="icons/icon.svg" alt="">جداول</span>
   <nav id="tabs" class="tabs" aria-label="الملفات المفتوحة"></nav>
   <button id="btn-save" class="tb-icon" title="حفظ (Ctrl+S)"><svg><use href="#i-save"/></svg></button>
   <button id="btn-undo" class="tb-icon" title="تراجع (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button>
@@ -155,28 +155,22 @@
 </dialog>
 <div id="backstage" hidden role="dialog" aria-modal="true">
   <nav class="bs-nav">
-    <button class="bs-back" id="bs-close" title="رجوع"><svg viewBox="0 0 24 24"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button>
-    <button data-p="new">جديد</button>
-    <button data-p="open" class="on">فتح</button>
-    <button data-act="save">حفظ</button>
-    <button data-p="saveas">حفظ باسم</button>
-    <button data-act="print">طباعة</button>
-    <button data-p="share">مشاركة</button>
-    <button data-p="export">تصدير</button>
-    <button data-act="close">إغلاق</button>
+    <button class="bs-back" id="bs-close" title="رجوع"><svg viewBox="0 0 24 24"><path d="M20 12H5M11 6l-6 6 6 6"/></svg><span>رجوع</span></button>
+    <button data-p="new"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12 12v6M9 15h6"/></svg><span>جديد</span></button><button data-p="open" class="on"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>فتح</span></button><button data-act="save" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg><span>حفظ</span></button><button data-p="saveas" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v5"/><path d="M5 3v18h7"/><path d="M8 3v6h8V3"/><path d="M14 21l1-4 5-5 2 2-5 5z"/></svg><span>حفظ باسم</span></button><button data-p="print" class="needs"><svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>طباعة</span></button><button data-p="share" class="needs"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span>مشاركة</span></button><button data-p="export" class="needs"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>تصدير</span></button><button data-act="close" class="needs"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg><span>إغلاق</span></button>
     <hr>
-    <button data-act="settings">الإعدادات</button>
+    <button data-act="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg><span>الإعدادات</span></button>
   </nav>
   <main class="bs-main">
+    <div class="bs-need" id="bs-need" hidden>لا يوجد ملف مفتوح حاليًا. افتح ملفًا أو أنشئ مصنفًا جديدًا لتفعيل هذه الخيارات.</div>
     <section data-p="new" hidden>
       <h2>جديد</h2>
-      <div class="bs-cards"><button class="card" id="bs-new"><b>مصنف فارغ</b><span>ابدأ بجدول جديد.</span></button></div>
+      <div class="bs-cards"><button class="card" id="bs-new"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12 12v6M9 15h6"/></svg></i><b>مصنف فارغ</b><span>ابدأ بجدول جديد.</span></button></div>
     </section>
     <section data-p="open">
       <h2>فتح</h2>
       <div class="bs-cards">
-        <button class="card" id="bs-open-dev"><b>📱 هذا الجهاز</b><span>ملفات التخزين الداخلي والتنزيلات والمستندات وبطاقة SD.</span></button>
-        <button class="card" id="bs-open-cloud"><b>☁ OneDrive وGoogle Drive</b><span>تظهر في نافذة اختيار الملفات (القائمة الجانبية) إن كان تطبيقها مثبتًا. يُفتح الملف من مكانه ويُحفظ فيه.</span></button>
+        <button class="card" id="bs-open-dev"><i class="ci"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg></i><b>هذا الجهاز</b><span>ملفات التخزين الداخلي والتنزيلات والمستندات وبطاقة SD.</span></button>
+        <button class="card" id="bs-open-cloud"><i class="ci"><svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9.5a3.8 3.8 0 0 1-.5 8.5z"/></svg></i><b>OneDrive وGoogle Drive</b><span>تظهر في نافذة اختيار الملفات (القائمة الجانبية) إن كان تطبيقها مثبتًا. يُفتح الملف من مكانه ويُحفظ فيه.</span></button>
       </div>
       <div class="bs-h"><h3>الأخيرة</h3><button class="mini" id="bs-clear">مسح القائمة</button></div>
       <div id="bs-list"></div>
@@ -184,24 +178,39 @@
     <section data-p="saveas" hidden>
       <h2>حفظ باسم</h2>
       <div class="bs-cards">
-        <button class="card" id="bs-save-x"><b>📗 مصنف Excel (XLSX)</b><span>اختر المكان من نافذة النظام: الجهاز أو OneDrive أو Google Drive أو بطاقة SD.</span></button>
-        <button class="card" id="bs-save-c"><b>📄 CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+        <button class="card" id="bs-save-x"><i class="ci"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg></i><b>مصنف Excel (XLSX)</b><span>اختر المكان من نافذة النظام: الجهاز أو OneDrive أو Google Drive أو بطاقة SD.</span></button>
+        <button class="card" id="bs-save-c"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/></svg></i><b>CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+      </div>
+    </section>
+    <section data-p="print" hidden>
+      <h2>طباعة</h2>
+      <div class="pr">
+        <div class="pr-opts">
+          <button class="cta" id="pr-go">طباعة / حفظ PDF</button>
+          <label class="field"><span>النطاق</span><select id="pr-scope"><option value="sheet">الورقة الحالية</option><option value="sel">التحديد فقط</option></select></label>
+          <label class="field"><span>الاتجاه</span><select id="pr-ori"><option value="auto">تلقائي</option><option value="portrait">طولي</option><option value="landscape">عرضي</option></select></label>
+          <label class="field"><span>حجم الورق</span><select id="pr-paper"><option value="A4">A4</option><option value="A3">A3</option><option value="letter">Letter</option></select></label>
+          <label class="chk"><input type="checkbox" id="pr-fit" checked><span>ملاءمة العرض لصفحة واحدة</span></label>
+          <label class="chk"><input type="checkbox" id="pr-grid"><span>طباعة خطوط الشبكة</span></label>
+          <p class="note">في Android اختر «حفظ كملف PDF» من نافذة الطباعة لإنشاء PDF.</p>
+        </div>
+        <div class="pr-prev"><div class="pv" id="pr-pv"></div></div>
       </div>
     </section>
     <section data-p="share" hidden>
       <h2>مشاركة</h2>
       <div class="bs-cards">
-        <button class="card" id="bs-share-x"><b>📗 إرسال نسخة Excel</b><span>يفتح قائمة المشاركة في الجهاز: OneDrive وGoogle Drive والبريد وواتساب وغيرها.</span></button>
-        <button class="card" id="bs-share-c"><b>📄 إرسال نسخة CSV</b><span>القيم فقط للورقة الحالية.</span></button>
-        <button class="card" id="bs-share-p"><b>🖨 إرسال PDF</b><span>اختر «حفظ كملف PDF» من نافذة الطباعة ثم شاركه.</span></button>
+        <button class="card" id="bs-share-x"><i class="ci"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg></i><b>إرسال نسخة Excel</b><span>يفتح قائمة المشاركة في الجهاز: OneDrive وGoogle Drive والبريد وواتساب وغيرها.</span></button>
+        <button class="card" id="bs-share-c"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/></svg></i><b>إرسال نسخة CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+        <button class="card" id="bs-share-p"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 14h6M9 18h4M14 3v5h5"/></svg></i><b>إرسال PDF</b><span>اختر «حفظ كملف PDF» من نافذة الطباعة ثم شاركه.</span></button>
       </div>
     </section>
     <section data-p="export" hidden>
       <h2>تصدير</h2>
       <div class="bs-cards">
-        <button class="card" id="bs-exp-pdf"><b>📕 إنشاء PDF</b><span>يفتح نافذة الطباعة، اختر منها «حفظ كملف PDF».</span></button>
-        <button class="card" id="bs-exp-x"><b>📗 تصدير كـ XLSX</b><span>حفظ نسخة جديدة بصيغة Excel.</span></button>
-        <button class="card" id="bs-exp-c"><b>📄 تصدير كـ CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+        <button class="card" id="bs-exp-pdf"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 14h6M9 18h4M14 3v5h5"/></svg></i><b>إنشاء PDF</b><span>يفتح نافذة الطباعة، اختر منها «حفظ كملف PDF».</span></button>
+        <button class="card" id="bs-exp-x"><i class="ci"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg></i><b>تصدير كـ XLSX</b><span>حفظ نسخة جديدة بصيغة Excel.</span></button>
+        <button class="card" id="bs-exp-c"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/></svg></i><b>تصدير كـ CSV</b><span>القيم فقط للورقة الحالية.</span></button>
       </div>
     </section>
   </main>

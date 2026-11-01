@@ -220,3 +220,29 @@ export function toCSV(rows) {
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// تعديل مراجع الصيغة عند إدراج (n>0) أو حذف (n<0) صفوف/أعمدة: axis 'r' أو 'c'، at = الفهرس (من 0)، target = اسم الورقة المتأثرة، own = ورقة الصيغة
+export function adjustFormula(f, axis, at, n, target, own) {
+  const RE = /("(?:[^"]|"")*")|((?:'(?:[^']|'')+'|[A-Za-z_؀-ۿ][\w.؀-ۿ]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+))?(?![\w(])/g;
+  const k = Math.abs(n);
+  const one = (i, isEnd, isRange) => { // يعيد الفهرس الجديد أو -1 إن حُذف
+    if (n > 0) return i >= at ? i + n : i;
+    if (i < at) return i;
+    if (i >= at + k) return i - k;
+    if (!isRange) return -1;
+    return isEnd ? at - 1 : at; // نهاية نطاق داخل المحذوف تنكمش
+  };
+  return f.replace(RE, (m, str, sheet, d1, col, d2, row, d3, col2, d4, row2, off, whole) => {
+    if (str) return str;
+    const prev = whole[off - 1]; if (prev && /[\w.]/.test(prev)) return m;
+    const sn = sheet ? sheet.slice(0, -1).replace(/^'|'$/g, '').replace(/''/g, "'") : own;
+    if (sn !== target) return m;
+    const rng = col2 != null;
+    let c1 = colIndex(col), r1 = +row - 1, c2 = rng ? colIndex(col2) : c1, r2 = rng ? +row2 - 1 : r1;
+    if (axis === 'r') { r1 = one(r1, false, rng); r2 = rng ? one(r2, true, true) : r1; }
+    else { c1 = one(c1, false, rng); c2 = rng ? one(c2, true, true) : c1; }
+    const bad = axis === 'r' ? (r1 < 0 || (rng && r2 < r1)) : (c1 < 0 || (rng && c2 < c1));
+    if (bad) return (sheet || '') + '#REF!';
+    return (sheet || '') + d1 + colName(c1) + d2 + (r1 + 1) + (rng ? ':' + d3 + colName(c2) + d4 + (r2 + 1) : '');
+  });
+}

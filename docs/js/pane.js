@@ -86,13 +86,26 @@ export class Pane {
   }
   setScrollX(x) { this.scroller.scrollLeft = this.sh && this.sh.rtl ? -x : x; }
 
+  // ---------- التكبير والتصغير ----------
+  setZoom(z, focus) {
+    if (!this.sh) return; z = Math.max(0.25, Math.min(4, Math.round(z * 100) / 100));
+    const old = this.z || 1; if (Math.abs(z - old) < 0.005) return;
+    const sc = this.scroller, k = z / old, fx = focus ? focus.x : sc.clientWidth / 2, fy = focus ? focus.y : sc.clientHeight / 2;
+    const sl = Math.abs(sc.scrollLeft), st = sc.scrollTop;
+    this.sh.zoom = z; this.axes(); this.block = null;
+    this.scroller.scrollTop = Math.max(0, (st + fy - HDR_H) * k - (fy - HDR_H));
+    this.setScrollX(Math.max(0, (sl + fx - HDR_W) * k - (fx - HDR_W)));
+    this.render(true); this.updateSel(); this.app.zoomChanged(this);
+  }
   // ---------- المحاور والرسم ----------
   axes() {
     const sh = this.sh;
     const cx = this.colX = new Float64Array(sh.ncols + 1);
-    for (let c = 0; c < sh.ncols; c++) cx[c + 1] = cx[c] + (sh.colW[c] || DEF_W);
+    const z = this.z = sh.zoom || 1, hc = sh.hidCols, hr = sh.hidRows;
+    this.layer.style.setProperty('--z', z);
+    for (let c = 0; c < sh.ncols; c++) cx[c + 1] = cx[c] + (hc && hc.has(c) ? 0 : (sh.colW[c] || DEF_W) * z);
     const ry = this.rowY = new Float64Array(sh.nrows + 1);
-    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (sh.rowH[r] || DEF_H);
+    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (hr && hr.has(r) ? 0 : (sh.rowH[r] || DEF_H) * z);
     const W = cx[sh.ncols], H = ry[sh.nrows];
     this.canvas.style.width = (W + HDR_W) + 'px'; this.canvas.style.height = (H + HDR_H) + 'px';
     this.layer.style.width = W + 'px'; this.layer.style.height = H + 'px';
@@ -123,30 +136,64 @@ export class Pane {
     for (let r = r0; r <= r1 + 1; r++) lines += `<i class="hl" style="top:${ry[r] - 1}px;inset-inline-start:${cx[c0]}px;width:${cx[c1 + 1] - cx[c0]}px"></i>`;
     this.lines.innerHTML = lines;
     let html = '';
-    const cells = sh.cells;
+    const cells = sh.cells, z = this.z || 1, mg = sh.merges && sh.merges.length ? sh.merges : null;
+    const cover = new Set();
+    const fs = (px) => z === 1 ? `${px}px` : `${(px * z).toFixed(2)}px`;
+    const style = (s, cls, num) => {
+      let o = '';
+      if (s) {
+        if (s.b) o += 'font-weight:700;'; if (s.i) o += 'font-style:italic;'; if (s.u) o += 'text-decoration:underline;';
+        if (s.color) o += `color:${s.color};`; if (s.fill) o += `background:${s.fill};`;
+        if (s.font) o += `font-family:${fontCss(s.font)};`; if (s.sz) o += `font-size:${fs(s.sz * 4 / 3)};`;
+        if (s.al) o += `text-align:${s.al};`;
+        if (s.bd) { for (const [ch, side] of [['t', 'top'], ['b', 'bottom'], ['l', 'left'], ['r', 'right']]) if (s.bd.includes(ch)) o += `border-${side}:${Math.max(1, Math.round(z))}px solid ${s.bdc || 'var(--s-text)'};`; }
+      }
+      return o;
+    };
+    if (mg) for (const m of mg) {
+      if (m.r2 < r0 || m.r1 > r1 || m.c2 < c0 || m.c1 > c1) continue;
+      for (let r = Math.max(r0, m.r1); r <= Math.min(r1, m.r2); r++) for (let c = Math.max(c0, m.c1); c <= Math.min(c1, m.c2); c++) cover.add(key(r, c));
+      const cell = cells.get(key(m.r1, m.c1)); const s = cell && cell.s; const txt = cell ? displayText(cell) : '';
+      const w = cx[m.c2 + 1] - cx[m.c1], h = ry[m.r2 + 1] - ry[m.r1]; if (w <= 0 || h <= 0) continue;
+      const num = cell && (isNumCell(cell) || typeof cell.v === 'boolean');
+      let cls = 'c mg' + (num ? ' n' : ''); if (s && s.fill && !s.color) cls += ' f';
+      let st2 = `inset-inline-start:${cx[m.c1]}px;top:${ry[m.r1]}px;width:${w}px;height:${h}px;line-height:${Math.min(h - 1, 22 * z)}px;background:${s && s.fill ? s.fill : 'var(--s-bg)'};` + style(s, cls, num);
+      if (h > 30 * z) st2 += `display:flex;align-items:center;`;
+      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;'; cls += ' wr'; }
+      html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
+    }
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const cell = cells.get(key(r, c)); if (!cell) continue;
+        if (cover.size && cover.has(key(r, c))) continue;
         const txt = displayText(cell); const s = cell.s;
-        if (!txt && !(s && s.fill)) continue;
+        if (!txt && !(s && (s.fill || s.bd))) continue;
         const num = isNumCell(cell) || typeof cell.v === 'boolean';
         let w = cx[c + 1] - cx[c];
+        if (w <= 0) continue;
         // النص يمتد إلى الخلايا الفارغة المجاورة كما في Excel
-        if (!num && txt && !(s && (s.al || s.fill))) {
-          let k = c + 1; while (k <= c1 + 6 && k < sh.ncols && !cells.has(key(r, k)) && k - c < 12) { w += cx[k + 1] - cx[k]; k++; }
+        if (!num && txt && !(s && (s.al || s.fill || s.wrap))) {
+          let k = c + 1; while (k <= c1 + 6 && k < sh.ncols && !cells.has(key(r, k)) && !(mg && this.mergeAt(r, k)) && k - c < 12) { w += cx[k + 1] - cx[k]; k++; }
         }
-        let st2 = `inset-inline-start:${cx[c]}px;top:${ry[r]}px;width:${w}px;height:${ry[r + 1] - ry[r]}px;line-height:${ry[r + 1] - ry[r] - 1}px;`;
+        const hh = ry[r + 1] - ry[r]; if (hh <= 0) continue;
+        let st2 = `inset-inline-start:${cx[c]}px;top:${ry[r]}px;width:${w}px;height:${hh}px;line-height:${hh - 1}px;`;
         let cls = 'c';
         if (num) cls += ' n';
         if (cell.f != null && cell.v === undefined) cls += ' pending';
         if (s) {
-          if (s.b) st2 += 'font-weight:700;'; if (s.i) st2 += 'font-style:italic;'; if (s.u) st2 += 'text-decoration:underline;';
-          if (s.color) st2 += `color:${s.color};`; if (s.fill) { st2 += `background:${s.fill};`; if (!s.color) cls += ' f'; }
-          if (s.font) st2 += `font-family:${fontCss(s.font)};`; if (s.sz) st2 += `font-size:${s.sz * 4 / 3}px;`;
-          if (s.al) st2 += `text-align:${s.al};`;
+          st2 += style(s, cls, num);
+          if (s.fill && !s.color) cls += ' f';
           if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;'; cls += ' wr'; }
         }
-        html += `<div class="${cls}" style="${st2}">${esc(txt)}</div>`;
+        html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
+      }
+    }
+    const fl = sh.filter;
+    if (fl && fl.r1 >= r0 && fl.r1 <= r1) {
+      const hh = ry[fl.r1 + 1] - ry[fl.r1];
+      for (let c = Math.max(c0, fl.c1); c <= Math.min(c1, fl.c2); c++) {
+        const w = cx[c + 1] - cx[c]; if (w < 22 || hh < 14) continue;
+        html += `<button class="fbtn${fl.hide[c] && fl.hide[c].size ? ' on' : ''}" data-c="${c}" style="inset-inline-end:auto;inset-inline-start:${cx[c + 1] - 19}px;top:${ry[fl.r1] + Math.max(1, (hh - 17) / 2)}px" title="${tr('تصفية')}">▾</button>`;
       }
     }
     this.cells.innerHTML = html;
@@ -173,15 +220,29 @@ export class Pane {
     const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
     this.grow(Math.max(ar, fr) + 50, Math.max(ac, fc) + 5);
     this.sel = { ar: cl(ar, sh.nrows), ac: cl(ac, sh.ncols), fr: cl(fr, sh.nrows), fc: cl(fc, sh.ncols) };
+    if (sh.merges && sh.merges.length) this.expandMerges();
     if (scroll) this.scrollTo(this.sel.fr, this.sel.fc);
     this.updateSel();
   }
+  mergeAt(r, c) { const mg = this.sh.merges; if (mg) for (const m of mg) if (r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2) return m; return null; }
+  // التحديد يشمل الخلايا المدمجة كاملة (كما في Excel)
+  expandMerges() {
+    const g = this.range(), s = this.sel; let { r1, r2, c1, c2 } = g, ch = true;
+    while (ch) {
+      ch = false;
+      for (const m of this.sh.merges) if (m.r1 <= r2 && m.r2 >= r1 && m.c1 <= c2 && m.c2 >= c1 && (m.r1 < r1 || m.r2 > r2 || m.c1 < c1 || m.c2 > c2)) { r1 = Math.min(r1, m.r1); r2 = Math.max(r2, m.r2); c1 = Math.min(c1, m.c1); c2 = Math.max(c2, m.c2); ch = true; }
+    }
+    if (r1 !== g.r1 || r2 !== g.r2 || c1 !== g.c1 || c2 !== g.c2) this.sel = { ar: r1, ac: c1, fr: r2, fc: c2 };
+    else if (s.ar === s.fr && s.ac === s.fc) { /* خلية عادية */ }
+  }
+  // الخلية النشطة (مع امتدادها إن كانت مدمجة)
+  actBox() { const s = this.sel, m = this.sh.merges && this.mergeAt(s.ar, s.ac); return m && m.r1 === s.ar && m.c1 === s.ac ? m : { r1: s.ar, c1: s.ac, r2: s.ar, c2: s.ac }; }
   updateSel() {
     if (!this.sh) return;
     const g = this.range(), s = this.sel;
     this.box(this.selEl, g.r1, g.c1, g.r2, g.c2);
     this.selEl.classList.toggle('multi', g.r1 !== g.r2 || g.c1 !== g.c2);
-    this.box(this.actEl, s.ar, s.ac, s.ar, s.ac);
+    { const a = this.actBox(); this.box(this.actEl, a.r1, a.c1, a.r2, a.c2); }
     const cx = this.colX, ry = this.rowY, th = this.handlesOn() && !this.editing;
     if (this.editing) this.fillh.style.cssText = 'display:none';
     else if (th) this.fillh.style.cssText = `display:block;inset-inline-start:${(cx[g.c1] + cx[g.c2 + 1]) / 2}px;top:${ry[g.r2 + 1]}px`;
@@ -229,15 +290,15 @@ export class Pane {
     const cell = this.sh.cells.get(key(s.ar, s.ac));
     this.editing = { r: s.ar, c: s.ac, mode, orig: rawText(cell) };
     const ed = this.editor;
-    this.box(ed, s.ar, s.ac, s.ar, s.ac);
+    const ab = this.actBox(); this.box(ed, ab.r1, ab.c1, ab.r2, ab.c2);
     const st = (cell && cell.s) || {};
     ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
-    ed.style.fontFamily = st.font ? fontCss(st.font) : ''; ed.style.fontSize = st.sz ? `${st.sz * 4 / 3}px` : '';
+    ed.style.fontFamily = st.font ? fontCss(st.font) : ''; ed.style.fontSize = st.sz ? `calc(${st.sz * 4 / 3}px * var(--z,1))` : '';
     ed.style.fontWeight = st.b ? '700' : ''; ed.style.fontStyle = st.i ? 'italic' : '';
     // الموضع بخصائص فيزيائية كي لا يتأثر بتغيّر اتجاه النص داخل المحرر
     const rtl = this.sh.rtl, x0 = this.colX[s.ac];
     ed.style.insetInlineStart = 'auto'; ed.style.left = rtl ? 'auto' : x0 + 'px'; ed.style.right = rtl ? x0 + 'px' : 'auto';
-    this.editing.w = this.colX[s.ac + 1] - x0; this.editing.x0 = x0;
+    this.editing.w = this.colX[ab.c2 + 1] - x0; this.editing.x0 = x0;
     ed.value = initial != null ? initial : this.editing.orig;
     this.fitEditor();
     this.formula.value = ed.value;
@@ -281,7 +342,12 @@ export class Pane {
   move(dr, dc, extend) {
     const s = this.sel;
     if (extend) this.select(s.ar, s.ac, s.fr + dr, s.fc + dc);
-    else this.select(s.ar + dr, s.ac + dc);
+    else {
+      const a = this.sh.merges && this.sh.merges.length ? this.actBox() : null;
+      let r = s.ar, c = s.ac;
+      if (a) { r = dr > 0 ? a.r2 : a.r1; c = dc > 0 ? a.c2 : a.c1; }
+      this.select(r + dr, c + dc);
+    }
   }
   jump(dr, dc) { // Ctrl+سهم: حافة البيانات
     const s = this.sel, has = (r, c) => this.sh.cells.has(key(r, c));
@@ -301,12 +367,23 @@ export class Pane {
     this.el.addEventListener('pointerdown', () => this.app.setActive(this.idx), true);
     this.el.addEventListener('touchstart', () => this.app.setActive(this.idx), { capture: true, passive: true });
 
+    // التكبير: قرصة بإصبعين أو Ctrl+عجلة الفأرة
+    let pz = null;
+    sc.addEventListener('touchstart', (e) => { if (e.touches.length === 2 && this.sh) { const [a, b] = e.touches; pz = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z: this.z || 1 }; if (this.editing) this.commitEdit(); } else pz = null; }, { passive: true });
+    sc.addEventListener('touchmove', (e) => {
+      if (!pz || e.touches.length !== 2) return; e.preventDefault();
+      const [a, b] = e.touches, d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), r = sc.getBoundingClientRect();
+      const z = pz.z * d / pz.d; if (!pz.raf) pz.raf = requestAnimationFrame(() => { pz && (pz.raf = 0); this.setZoom(z, { x: (a.clientX + b.clientX) / 2 - r.left, y: (a.clientY + b.clientY) / 2 - r.top }); });
+    }, { passive: false });
+    sc.addEventListener('touchend', () => { pz = null; }, { passive: true });
+    sc.addEventListener('wheel', (e) => { if (!(e.ctrlKey || e.metaKey) || !this.sh) return; e.preventDefault(); const r = sc.getBoundingClientRect(); this.setZoom((this.z || 1) * (e.deltaY < 0 ? 1.1 : 1 / 1.1), { x: e.clientX - r.left, y: e.clientY - r.top }); }, { passive: false });
+
     // الماوس والقلم
     let drag = null;
     this.layer.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'touch') this.setTouchMode(e.pointerType === 'pen' ? this.touchMode : false);
       this.app.hideMini();
-      if (e.pointerType === 'touch' || e.button > 0 || e.target === this.editor) return;
+      if (e.pointerType === 'touch' || e.button > 0 || e.target === this.editor || (e.target.closest && e.target.closest('.fbtn'))) return;
       if (this.editing) this.commitEdit();
       e.preventDefault(); this.focus();
       const h = this.hit(e.clientX, e.clientY);
@@ -328,13 +405,14 @@ export class Pane {
       drag = null;
     };
     this.layer.addEventListener('pointerup', up); this.layer.addEventListener('pointercancel', up);
+    this.cells.addEventListener('click', (e) => { const b = e.target.closest('.fbtn'); if (b) { e.stopPropagation(); this.app.filterMenu(this, +b.dataset.c, b); } });
     this.layer.addEventListener('dblclick', (e) => { if (e.target !== this.editor) this.startEdit(); });
 
     // اللمس: نقرة = تحديد، نقرتان = تحرير، ضغطة مطوّلة ثم سحب = تحديد نطاق، ضغطة مطوّلة على نطاق محدد ثم سحب = نقل نسخة إلى الملف الآخر
     let t = null, lastTap = null;
     this.layer.addEventListener('touchstart', (e) => {
       this.setTouchMode(true); this.app.hideMini();
-      if (e.touches.length !== 1 || e.target === this.editor) { t = null; return; }
+      if (e.touches.length !== 1 || e.target === this.editor || (e.target.closest && e.target.closest('.fbtn'))) { t = null; return; }
       const p = e.touches[0]; const h = this.hit(p.clientX, p.clientY);
       t = { x: p.clientX, y: p.clientY, h, mode: 'none', moved: false };
       t.timer = setTimeout(() => {
@@ -507,11 +585,11 @@ export class Pane {
     const list = []; const a = inSel ? (col ? g.c1 : g.r1) : idx, b = inSel ? (col ? g.c2 : g.r2) : idx;
     for (let i = a; i <= b; i++) list.push(i);
     const map = col ? sh.colW : sh.rowH, def = col ? DEF_W : DEF_H;
-    const start = map[idx] || def, x0 = col ? e.clientX : e.clientY;
+    const zz = this.z || 1, start = (map[idx] || def) * zz, x0 = col ? e.clientX : e.clientY;
     const tgt = e.currentTarget; tgt.setPointerCapture(e.pointerId);
     const move = (ev) => {
       let d = (col ? ev.clientX : ev.clientY) - x0; if (col && sh.rtl) d = -d;
-      const v = Math.max(col ? 18 : 12, Math.round(start + d));
+      const v = Math.max(col ? 18 : 12, Math.round((start + d) / zz));
       list.forEach((i) => { map[i] = v; });
       this.axes(); this.block = null; this.render(true); this.updateSel();
     };

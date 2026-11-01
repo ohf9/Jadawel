@@ -1,6 +1,6 @@
 // النموذج + قراءة وكتابة XLSX/CSV
 import { tr } from './i18n.js';
-import { key, unkey, parseDelimited, toCSV, rawText, parseInput, uid } from './util.js';
+import { key, unkey, parseDelimited, toCSV, rawText, parseInput, uid, parseRange } from './util.js';
 
 export function newSheet(name, rtl = true) {
   return { id: uid(), name, cells: new Map(), colW: {}, rowH: {}, rtl, origId: null, edited: new Set(), colEdited: new Set(), rowEdited: new Set(), rtlChanged: false, nrows: 1000, ncols: 40 };
@@ -26,6 +26,8 @@ function readStyle(cell) {
   if (al && ['left', 'center', 'right'].includes(al.horizontal)) s.al = al.horizontal;
   if (al && al.wrapText) s.wrap = 1;
   if (cell.numFmt && cell.numFmt !== 'General') s.nf = cell.numFmt;
+  const bd = cell.border;
+  if (bd) { let t = ''; if (bd.top && bd.top.style) t += 't'; if (bd.bottom && bd.bottom.style) t += 'b'; if (bd.left && bd.left.style) t += 'l'; if (bd.right && bd.right.style) t += 'r'; if (t) s.bd = t; }
   return Object.keys(s).length ? s : null;
 }
 
@@ -63,7 +65,10 @@ async function readXlsxExcelJS(buffer, name) {
         sh.cells.set(key(rn - 1, cn - 1), c);
       });
     });
-    (ws.columns || []).forEach((col, i) => { if (col && col.width) sh.colW[i] = Math.round(col.width * 7 + 5); });
+    (ws.columns || []).forEach((col, i) => { if (col && col.width) sh.colW[i] = Math.round(col.width * 7 + 5); if (col && col.hidden) (sh.hidCols = sh.hidCols || new Set()).add(i); });
+    ws.eachRow({ includeEmpty: false }, (row, rn) => { if (row.hidden) (sh.hidRows = sh.hidRows || new Set()).add(rn - 1); });
+    const mg = (ws.model && ws.model.merges) || [];
+    sh.merges = mg.map((m) => parseRange(m)).filter((g) => g && (g.r2 > g.r1 || g.c2 > g.c1)).map((g) => ({ r1: g.r1, c1: g.c1, r2: g.r2, c2: g.c2 }));
     fitSize(sh);
     wb.sheets.push(sh);
   });
@@ -99,9 +104,10 @@ function applyStyle(ec, s) {
     ec.font = f;
   }
   if ('fill' in s) ec.fill = s.fill ? { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(s.fill) } } : { type: 'pattern', pattern: 'none' };
-  if (s.al) ec.alignment = Object.assign({}, ec.alignment, { horizontal: s.al });
+  if ('al' in s) ec.alignment = Object.assign({}, ec.alignment, { horizontal: s.al || undefined });
   if ('wrap' in s) ec.alignment = Object.assign({}, ec.alignment, { wrapText: !!s.wrap });
   if (s.nf) ec.numFmt = s.nf;
+  if ('bd' in s) { const b = s.bd || '', o = {}; const th = { style: 'thin', color: { argb: 'FF000000' } }; if (b.includes('t')) o.top = th; if (b.includes('b')) o.bottom = th; if (b.includes('l')) o.left = th; if (b.includes('r')) o.right = th; ec.border = o; }
 }
 
 // يكتب XLSX: يفتح الملف الأصلي (إن وجد) ويطبّق التعديلات فقط، فتبقى التنسيقات الأصلية كما هي
@@ -113,6 +119,8 @@ export async function writeXlsx(wb) {
   for (const sh of wb.sheets) {
     let ws = sh.origId != null ? x.getWorksheet(sh.origId) : null;
     let all = false;
+    if (ws && (sh.rewrite || sh.mergesEdited)) { for (const m of (ws.model.merges || []).slice()) { try { ws.unMergeCells(m); } catch (e) { /* تجاهل */ } } }
+    if (ws && sh.rewrite) { ws.spliceRows(1, ws.rowCount + 1); all = true; }
     if (!ws) { ws = x.addWorksheet(sh.name, { views: [{ rightToLeft: sh.rtl }] }); all = true; }
     else {
       if (ws.name !== sh.name) ws.name = sh.name;
@@ -125,10 +133,19 @@ export async function writeXlsx(wb) {
       ec.value = toExcelValue(cell);
       if (cell && cell.s) applyStyle(ec, cell.s);
     }
-    if (all) { for (const [c, w] of Object.entries(sh.colW)) ws.getColumn(+c + 1).width = (w - 5) / 7; for (const [r, h] of Object.entries(sh.rowH)) ws.getRow(+r + 1).height = h * 0.75; }
+    if (all) {
+      const nc = Math.max(ws.columnCount || 0, ...Object.keys(sh.colW).map((c) => +c + 1));
+      for (let c = 0; c < nc; c++) { const w = sh.colW[c]; ws.getColumn(c + 1).width = w ? (w - 5) / 7 : undefined; }
+      for (const [r, h] of Object.entries(sh.rowH)) ws.getRow(+r + 1).height = h * 0.75;
+    }
     else {
       for (const c of sh.colEdited || []) if (sh.colW[c]) ws.getColumn(c + 1).width = (sh.colW[c] - 5) / 7;
       for (const r of sh.rowEdited || []) if (sh.rowH[r]) ws.getRow(r + 1).height = sh.rowH[r] * 0.75;
+    }
+    if (sh.rewrite || sh.mergesEdited || all) for (const m of sh.merges || []) { try { ws.mergeCells(m.r1 + 1, m.c1 + 1, m.r2 + 1, m.c2 + 1); } catch (e) { console.warn('merge', e); } }
+    if (sh.hidTouched) {
+      for (const r of sh.hidTouched) ws.getRow(r + 1).hidden = !!(sh.hidRows && sh.hidRows.has(r));
+      for (const c of sh.hidColsTouched || []) ws.getColumn(c + 1).hidden = !!(sh.hidCols && sh.hidCols.has(c));
     }
   }
   for (const ws of x.worksheets.slice()) if (!keep.has(ws.id)) x.removeWorksheet(ws.id);
@@ -141,7 +158,7 @@ export async function rebaseAfterSave(wb, buffer) {
   const x = new ExcelJS.Workbook();
   await x.xlsx.load(buffer);
   const ids = x.worksheets.map((w) => w.id);
-  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; });
+  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
   wb.orig = buffer; wb.kind = 'xlsx';
 }
 
@@ -179,6 +196,7 @@ export function readSheetJS(buffer, name) {
     }
     (ws['!cols'] || []).forEach((col, i) => { if (col && (col.wpx || col.wch)) sh.colW[i] = Math.round(col.wpx || col.wch * 7 + 5); });
     (ws['!rows'] || []).forEach((row, i) => { if (row && (row.hpx || row.hpt)) sh.rowH[i] = Math.round(row.hpx || row.hpt * 4 / 3); });
+    sh.merges = (ws['!merges'] || []).map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
     sh.rtl = arabic; fitSize(sh); wb.sheets.push(sh);
   }
   if (!wb.sheets.length) wb.sheets.push(newSheet('Sheet1'));
