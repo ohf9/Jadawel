@@ -5,6 +5,8 @@ import { recalc } from './calc.js';
 import { tr, lang, translateDom } from './i18n.js';
 import { openPopover, closePopover } from './ui.js';
 import { sigEn } from './i18n-more.js';
+import { chartIcon } from './chartui.js';
+import { CHART_TYPES } from './charts.js';
 import { FN_CATS, FNS, ALL_FNS } from './fnlib.js';
 
 const $ = (s) => document.querySelector(s);
@@ -37,6 +39,8 @@ const ICONS = {
   swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
   fbar: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h4"/>',
   clear: '<path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/>',
+  freeze: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M4 10h16M10 4v16" stroke-width="3" opacity=".35"/>',
+  cf: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.6h16"/><path d="M4 4h16v5.3H4z" fill="currentColor" opacity=".3"/>',
   fillc: '<path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 20h14"/>',
 };
 const NO_ICON = new Set();
@@ -47,6 +51,7 @@ const C2 = (...rows) => `<div class="col2">${rows.map((r) => `<div class="row">$
 
 const RIBBON = {
   insert: G(B('insRow', 'insrow', 'إدراج صفوف', 'إدراج صفوف فوق التحديد (بعدد الصفوف المحددة)'), B('insCol', 'inscol', 'إدراج أعمدة', 'إدراج أعمدة قبل التحديد (بعدد الأعمدة المحددة)'), B('delRow', 'delrow', 'حذف صفوف', 'حذف الصفوف المحددة'), B('delCol', 'delcol', 'حذف أعمدة', 'حذف الأعمدة المحددة'))
+    + `<div class="rg"><div class="rg-body">${CHART_TYPES.map(([t, l]) => `<button class="rb big" data-act="chart:${t}" title="${l}">${chartIcon(t)}<span>${l}</span></button>`).join('')}</div></div>`
     + G(B('newSheet', 'sheet', 'ورقة جديدة', 'إضافة ورقة عمل جديدة'))
     + G(B('fnDialog', 'fx', 'إدراج دالة', 'اختر دالة من القائمة وأدرجها في الخلية'), B('today', 'date', 'تاريخ اليوم', 'يضع تاريخ اليوم كقيمة ثابتة (Ctrl+;)'), B('nowTime', 'time', 'الوقت الآن', 'يضع الوقت الحالي كقيمة ثابتة (Ctrl+Shift+;)')),
   formulas: G(B('fnDialog', 'fx', 'إدراج دالة', 'اختر دالة من القائمة وأدرجها في الخلية'), B('sumMenu', 'sum', 'جمع تلقائي', 'جمع / متوسط / عدد / أكبر / أصغر'))
@@ -57,10 +62,10 @@ const RIBBON = {
     + G(B('removeDup', 'dup', 'حذف المكرر', 'حذف الصفوف المكررة في التحديد'), B('textToCols', 't2c', 'نص إلى أعمدة', 'تقسيم نص العمود إلى أعمدة بفاصل')),
 };
 const NFB = G(`<div class="col2"><div class="row"><button class="rb icon txt ltr" data-act="nf:0%" title="نمط النسبة المئوية">%</button><button class="rb icon txt ltr" data-act="nf:#,##0.00" title="نمط الفاصلة (آلاف)">000</button><button class="rb icon txt ltr" data-act="nf:$#,##0.00" title="نمط العملة">$</button></div></div>`);
-const HOME_EXTRA = NFB + G(B('mergeMenu', 'merge', 'دمج الخلايا', 'دمج وتوسيط / دمج / فصل'), B('borderMenu', 'border', 'حدود', 'حدود الخلايا'))
+const HOME_EXTRA = NFB + G(B('mergeMenu', 'merge', 'دمج الخلايا', 'دمج وتوسيط / دمج / فصل'), B('borderMenu', 'border', 'حدود', 'حدود الخلايا'), B('cfMenu', 'cf', 'تنسيق شرطي', 'تمييز الخلايا تلقائيًا حسب قيمتها: ألوان، أشرطة، تدرجات'))
   + G(B('fillMenu', 'fillc', 'تعبئة', 'تعبئة لأسفل / لليمين'), B('clearMenu', 'clear', 'مسح', 'مسح الكل / التنسيقات / المحتويات'), B('fmtMenu', 'fmt', 'تنسيق', 'ارتفاع الصف وعرض العمود والإخفاء'))
   + G(B('sortMenu', 'sort', 'ترتيب وتصفية', 'ترتيب وتصفية'), B('findDlg', 'find', 'بحث واستبدال', 'بحث واستبدال (Ctrl+F / Ctrl+H)'));
-const VIEW_EXTRA = G(B('zoomIn', 'zin', 'تكبير', 'تكبير العرض'), B('zoomOut', 'zout', 'تصغير', 'تصغير العرض'), B('zoom100', 'z100', '100%', 'حجم 100%'), B('zoomSel', 'zin', 'تكبير للتحديد', 'يملأ الشاشة بالتحديد'))
+const VIEW_EXTRA = G(B('zoomIn', 'zin', 'تكبير', 'تكبير العرض'), B('zoomOut', 'zout', 'تصغير', 'تصغير العرض'), B('zoom100', 'z100', '100%', 'حجم 100%'), B('zoomSel', 'zin', 'تكبير للتحديد', 'يملأ الشاشة بالتحديد')) + G(B('freezeMenu', 'freeze', 'تثبيت الألواح', 'تثبيت صفوف وأعمدة لتبقى ظاهرة أثناء التمرير'))
   + G(B('swapPanes', 'swap', 'تبديل اللوحتين', 'تبديل مكان الملفين (يمين ↔ يسار)'), B('toggleFbar', 'fbar', 'شريط الصيغة', 'إظهار/إخفاء شريط الصيغة'), B('showF', 'showf', 'إظهار الصيغ', 'عرض الصيغ بدل نتائجها (Ctrl+`)'));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -102,6 +107,11 @@ export function install(app) {
         case 'insCol': return this.insertLines(p, 'c');
         case 'delRow': return this.deleteLines(p, 'r');
         case 'delCol': return this.deleteLines(p, 'c');
+        case 'chart': return this.insertChart(p, arg);
+        case 'freezeMenu': return this.menu(btn, [
+          { t: 'تثبيت الألواح (فوق وقبل الخلية النشطة)', f: () => this.freezePanes(p, 'sel') }, { t: 'تثبيت الصف العلوي', f: () => this.freezePanes(p, 'row') },
+          { t: 'تثبيت العمود الأول', f: () => this.freezePanes(p, 'col') }, '-', { t: 'إلغاء تثبيت الألواح', f: () => this.freezePanes(p, 'off'), off: !(p.sh.freeze && (p.sh.freeze.rows || p.sh.freeze.cols)) }]);
+        case 'cfMenu': return this.cfMenu(btn);
         case 'newSheet': return this.addSheet(p);
         case 'fnDialog': return this.fnDialog();
         case 'today': return this.putNow(p, 'date');

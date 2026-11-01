@@ -1,5 +1,6 @@
 // لوحة عرض ملف واحد: شبكة خلايا افتراضية + شريط صيغ + تبويبات الأوراق
 import { fontCss } from './fonts.js';
+import { cfPrep, cfEffect } from './cf.js';
 import { tr, settings } from './i18n.js';
 import { key, a1, colName, rawText, displayText, isNumCell, parseInput, parseRange, esc } from './util.js';
 
@@ -42,6 +43,7 @@ export class Pane {
       marqEl: $('.marq'), dropEl: $('.drop'), editor: $('.editor'), tabs: $('.sheet-tabs'), corner: $('.corner'), sink: $('.sink'), warn: $('.warn'), fillh: $('.fillh'), fillbox: $('.fillbox'), hTL: $('.hnd.tl'), hBR: $('.hnd.br') });
     this.touchMode = matchMedia('(pointer:coarse)').matches;
     this.bind();
+    if (this.initCharts) this.initCharts();
   }
 
   // ---------- ربط الملف ----------
@@ -50,7 +52,7 @@ export class Pane {
     this.saveView();
     this.wb = wb;
     this.el.classList.toggle('is-empty', !wb);
-    if (!wb) { this.sh = null; this.title.textContent = ''; this.tabs.innerHTML = ''; return; }
+    if (!wb) { this.sh = null; this.title.textContent = ''; this.tabs.innerHTML = ''; this.selChart = null; if (this.chartsEl) this.chartsEl.innerHTML = ''; return; }
     wb._views = wb._views || {};
     const v = view || wb._views[this.idx] || { si: 0, sel: { ar: 0, ac: 0, fr: 0, fc: 0 }, st: 0, sl: 0 };
     this.setSheet(Math.min(v.si, wb.sheets.length - 1), v);
@@ -117,26 +119,11 @@ export class Pane {
     if (cols > sh.ncols) { sh.ncols = cols; ch = true; }
     if (ch) { this.axes(); this.block = null; }
   }
-  render(force) {
-    if (!this.sh) return;
-    const sc = this.scroller, st = sc.scrollTop, sl = Math.abs(sc.scrollLeft);
-    const vh = sc.clientHeight, vw = sc.clientWidth;
-    const sh = this.sh;
-    // توسيع الشبكة تلقائيًا عند الاقتراب من النهاية
-    if (st + vh > this.rowY[sh.nrows] - 200) this.grow(sh.nrows + 500, 0);
-    if (sl + vw > this.colX[sh.ncols] - 200) this.grow(0, sh.ncols + 20);
-    const r0 = Math.max(0, bsearch(this.rowY, st) - 4 & ~7), r1 = Math.min(sh.nrows - 1, bsearch(this.rowY, st + vh) + 12 | 7);
-    const c0 = Math.max(0, bsearch(this.colX, sl) - 2 & ~3), c1 = Math.min(sh.ncols - 1, bsearch(this.colX, sl + vw) + 6 | 3);
-    const b = this.block;
-    if (!force && b && b.r0 === r0 && b.r1 === r1 && b.c0 === c0 && b.c1 === c1) return;
-    this.block = { r0, r1, c0, c1 };
-    const cx = this.colX, ry = this.rowY;
-    let lines = '';
-    for (let c = c0; c <= c1 + 1; c++) lines += `<i class="vl" style="inset-inline-start:${cx[c] - 1}px;top:${ry[r0]}px;height:${ry[r1 + 1] - ry[r0]}px"></i>`;
-    for (let r = r0; r <= r1 + 1; r++) lines += `<i class="hl" style="top:${ry[r] - 1}px;inset-inline-start:${cx[c0]}px;width:${cx[c1 + 1] - cx[c0]}px"></i>`;
-    this.lines.innerHTML = lines;
+  cellHtml(r0, r1, c0, c1) {
+    const sh = this.sh, cx = this.colX, ry = this.rowY;
     let html = '';
     const cells = sh.cells, z = this.z || 1, mg = sh.merges && sh.merges.length ? sh.merges : null;
+    const cfi = sh.cf && sh.cf.length ? cfPrep(sh) : null;
     const cover = new Set();
     const fs = (px) => z === 1 ? `${px}px` : `${(px * z).toFixed(2)}px`;
     const style = (s, cls, num) => {
@@ -159,15 +146,15 @@ export class Pane {
       let cls = 'c mg' + (num ? ' n' : ''); if (s && s.fill && !s.color) cls += ' f';
       let st2 = `inset-inline-start:${cx[m.c1]}px;top:${ry[m.r1]}px;width:${w}px;height:${h}px;line-height:${Math.min(h - 1, 22 * z)}px;background:${s && s.fill ? s.fill : 'var(--s-bg)'};` + style(s, cls, num);
       if (h > 30 * z) st2 += `display:flex;align-items:center;`;
-      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;'; cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
+      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;' + this.fitWrap(txt, s, w, h, z); cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
       html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
     }
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const cell = cells.get(key(r, c)); if (!cell) continue;
         if (cover.size && cover.has(key(r, c))) continue;
-        const txt = displayText(cell); const s = cell.s;
-        if (!txt && !(s && (s.fill || s.bd))) continue;
+        const txt = displayText(cell); const fx = cfi && cfi.length ? cfEffect(cfi, sh, r, c, cell) : null; const s = fx && fx.s && Object.keys(fx.s).length ? Object.assign({}, cell.s, fx.s) : cell.s;
+        if (!txt && !(s && (s.fill || s.bd)) && !(fx && fx.css)) continue;
         const num = isNumCell(cell) || typeof cell.v === 'boolean';
         let w = cx[c + 1] - cx[c];
         if (w <= 0) continue;
@@ -183,9 +170,10 @@ export class Pane {
         if (s) {
           st2 += style(s, cls, num);
           if (s.fill && !s.color) cls += ' f';
-          if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;'; cls += ' wr'; }
+          if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;' + (txt ? this.fitWrap(txt, s, w, hh, z) : ''); cls += ' wr'; }
         }
         if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) st2 += this.shrink(txt, s, w, z);
+        if (fx && fx.css) st2 += fx.css;
         html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
       }
     }
@@ -197,8 +185,30 @@ export class Pane {
         html += `<button class="fbtn${fl.hide[c] && fl.hide[c].size ? ' on' : ''}" data-c="${c}" style="inset-inline-end:auto;inset-inline-start:${cx[c + 1] - 19}px;top:${ry[fl.r1] + Math.max(1, (hh - 17) / 2)}px" title="${tr('تصفية')}">▾</button>`;
       }
     }
-    this.cells.innerHTML = html;
+    return html;
+  }
+  render(force) {
+    if (!this.sh) return;
+    const sc = this.scroller, st = sc.scrollTop, sl = Math.abs(sc.scrollLeft);
+    const vh = sc.clientHeight, vw = sc.clientWidth;
+    const sh = this.sh;
+    // توسيع الشبكة تلقائيًا عند الاقتراب من النهاية
+    if (st + vh > this.rowY[sh.nrows] - 200) this.grow(sh.nrows + 500, 0);
+    if (sl + vw > this.colX[sh.ncols] - 200) this.grow(0, sh.ncols + 20);
+    const r0 = Math.max(0, bsearch(this.rowY, st) - 4 & ~7), r1 = Math.min(sh.nrows - 1, bsearch(this.rowY, st + vh) + 12 | 7);
+    const c0 = Math.max(0, bsearch(this.colX, sl) - 2 & ~3), c1 = Math.min(sh.ncols - 1, bsearch(this.colX, sl + vw) + 6 | 3);
+    const b = this.block;
+    if (!force && b && b.r0 === r0 && b.r1 === r1 && b.c0 === c0 && b.c1 === c1) return;
+    this.block = { r0, r1, c0, c1 };
+    const cx = this.colX, ry = this.rowY;
+    let lines = '';
+    for (let c = c0; c <= c1 + 1; c++) lines += `<i class="vl" style="inset-inline-start:${cx[c] - 1}px;top:${ry[r0]}px;height:${ry[r1 + 1] - ry[r0]}px"></i>`;
+    for (let r = r0; r <= r1 + 1; r++) lines += `<i class="hl" style="top:${ry[r] - 1}px;inset-inline-start:${cx[c0]}px;width:${cx[c1 + 1] - cx[c0]}px"></i>`;
+    this.lines.innerHTML = lines;
+    this.cells.innerHTML = this.cellHtml(r0, r1, c0, c1);
+    this.renderFrozen(r0, r1, c0, c1);
     this.renderHeaders();
+    if (this.renderCharts) this.renderCharts();
   }
   // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
   measure(txt, s, px) {
@@ -209,8 +219,15 @@ export class Pane {
   shrink(txt, s, w, z) {
     const px = ((s && s.sz) || 11) * 4 / 3 * z, avail = w - 10 * z;
     if (!txt || avail <= 4 || txt.length * px * 0.42 < avail) return '';
-    const tw = this.measure(txt, s, px); if (tw <= avail) return '';
-    return `font-size:${(px * Math.max(0.5, avail / tw)).toFixed(2)}px;`;
+    const tw = this.measure(txt, s, px); if (tw <= avail * 0.97) return '';
+    return `font-size:${(px * Math.max(0.4, avail * 0.94 / tw)).toFixed(2)}px;`;
+  }
+  // نص ملتفّ: يصغَّر الخط حتى يتسع في ارتفاع الخلية بدل أن يُقطع
+  fitWrap(txt, s, w, h, z) {
+    const base = ((s && s.sz) || 11) * 4 / 3 * z, avail = Math.max(8, w - 10 * z), maxH = h - 3 * z;
+    const lines = (px) => { let n = 0; for (const para of String(txt).split('\n')) { let cur = 0, l = 1; for (const word of para.split(/\s+/)) { const ww = this.measure(word, s, px), sp = this.measure(' ', s, px); if (cur && cur + sp + ww > avail) { l++; cur = ww; } else cur += (cur ? sp : 0) + ww; if (ww > avail) l += Math.floor(ww / avail); } n += l; } return n; };
+    for (let k = 1; k >= 0.4; k -= 0.06) { const px = base * k; if (lines(px) * px * 1.25 <= maxH) return k < 1 ? `font-size:${px.toFixed(2)}px;` : ''; }
+    return `font-size:${(base * 0.4).toFixed(2)}px;`;
   }
   renderHeaders() {
     if (!this.block) return;
@@ -224,6 +241,8 @@ export class Pane {
   box(el, r1, c1, r2, c2) {
     const cx = this.colX, ry = this.rowY;
     el.style.cssText = `display:block;inset-inline-start:${cx[c1]}px;top:${ry[r1]}px;width:${cx[c2 + 1] - cx[c1]}px;height:${ry[r2 + 1] - ry[r1]}px`;
+    const f = this.sh.freeze; // الخلايا المثبتة تتحرك مع التمرير فيجب أن يتبعها التحديد
+    if (f && (f.rows || f.cols)) { const sc = this.scroller; const ty = r2 < f.rows ? sc.scrollTop : 0, tx = c2 < f.cols ? sc.scrollLeft : 0; if (ty || tx) el.style.transform = `translate(${tx}px,${ty}px)`; }
   }
 
   // ---------- التحديد ----------
@@ -280,17 +299,22 @@ export class Pane {
   scrollTo(r, c) {
     const sc = this.scroller, cx = this.colX, ry = this.rowY;
     const vh = sc.clientHeight - HDR_H, vw = sc.clientWidth - HDR_W;
-    if (ry[r] < sc.scrollTop) sc.scrollTop = ry[r];
-    else if (ry[r + 1] > sc.scrollTop + vh) sc.scrollTop = ry[r + 1] - vh;
+    const fz = this.sh.freeze, fh = fz && fz.rows ? ry[Math.min(fz.rows, this.sh.nrows)] : 0, fw = fz && fz.cols ? cx[Math.min(fz.cols, this.sh.ncols)] : 0;
+    if (!(fz && r < fz.rows)) { if (ry[r] < sc.scrollTop + fh) sc.scrollTop = Math.max(0, ry[r] - fh); else if (ry[r + 1] > sc.scrollTop + vh) sc.scrollTop = ry[r + 1] - vh; }
     const sl = Math.abs(sc.scrollLeft);
-    if (cx[c] < sl) this.setScrollX(cx[c]);
-    else if (cx[c + 1] > sl + vw) this.setScrollX(cx[c + 1] - vw);
+    if (!(fz && c < fz.cols)) { if (cx[c] < sl + fw) this.setScrollX(Math.max(0, cx[c] - fw)); else if (cx[c + 1] > sl + vw) this.setScrollX(cx[c + 1] - vw); }
     this.render();
   }
   hit(clientX, clientY, clamp = true) {
     if (!this.sh) return null;
     const rc = this.layer.getBoundingClientRect();
-    const x = this.sh.rtl ? rc.right - clientX : clientX - rc.left, y = clientY - rc.top;
+    let x = this.sh.rtl ? rc.right - clientX : clientX - rc.left, y = clientY - rc.top;
+    const f = this.sh.freeze;
+    if (f && (f.rows || f.cols)) { // المنطقة المثبتة تبقى في مكانها على الشاشة مهما كان التمرير
+      const sr = this.scroller.getBoundingClientRect();
+      if (f.rows) { const vy = clientY - sr.top - HDR_H; if (vy >= 0 && vy < this.rowY[Math.min(f.rows, this.sh.nrows)]) y = vy; }
+      if (f.cols) { const vx = this.sh.rtl ? sr.right - clientX - HDR_W : clientX - sr.left - HDR_W; if (vx >= 0 && vx < this.colX[Math.min(f.cols, this.sh.ncols)]) x = vx; }
+    }
     if (!clamp && (x < 0 || y < 0)) return null;
     return { r: bsearch(this.rowY, Math.max(0, y)), c: bsearch(this.colX, Math.max(0, x)) };
   }
@@ -377,7 +401,7 @@ export class Pane {
   bind() {
     const sc = this.scroller;
     let raf = 0;
-    sc.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.render(); }); }, { passive: true });
+    sc.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.render(); if (this.sh && this.sh.freeze) this.updateSel(); }); }, { passive: true });
     this.el.addEventListener('pointerdown', () => this.app.setActive(this.idx), true);
     this.el.addEventListener('touchstart', () => this.app.setActive(this.idx), { capture: true, passive: true });
 

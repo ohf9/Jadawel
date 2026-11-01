@@ -1,5 +1,6 @@
 // النموذج + قراءة وكتابة XLSX/CSV
 import { tr } from './i18n.js';
+import { readCharts, injectCharts, stripDrawings } from './charts.js';
 import { key, unkey, parseDelimited, toCSV, rawText, parseInput, uid, parseRange } from './util.js';
 
 export function newSheet(name, rtl = true) {
@@ -54,6 +55,8 @@ async function readXlsxExcelJS(buffer, name) {
   const wb = { id: uid(), name, kind: 'xlsx', sheets: [], dirty: false, orig: buffer, handle: null, overwriteOK: false, created: Date.now() };
   x.eachSheet((ws) => {
     const sh = newSheet(ws.name, !!(ws.views && ws.views[0] && ws.views[0].rightToLeft));
+    { const v = ws.views && ws.views[0]; if (v && v.state === 'frozen' && (v.xSplit || v.ySplit)) sh.freeze = { rows: v.ySplit || 0, cols: v.xSplit || 0 }; }
+    { const cfs = ws.conditionalFormattings; if (cfs && cfs.length) sh.cf = cfs.map((e) => ({ ref: e.ref, rules: (e.rules || []).map((r) => Object.assign({}, r)) })); }
     sh.origId = ws.id; sh.tabColor = argb(ws.properties && ws.properties.tabColor);
     ws.eachRow({ includeEmpty: false }, (row, rn) => {
       if (row.height) sh.rowH[rn - 1] = Math.round(row.height * 4 / 3);
@@ -91,6 +94,7 @@ function toExcelValue(cell) {
   if (cell.f != null) return cell.v !== undefined && cell.v !== null && typeof cell.v !== 'object' ? { formula: cell.f, result: cell.v } : { formula: cell.f };
   return cell.v === undefined ? null : cell.v;
 }
+const colLetter = (n) => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = ((n - 1) / 26) | 0; } return s; };
 const toArgb = (c) => 'FF' + c.replace('#', '').toUpperCase().padStart(6, '0').slice(-6);
 // يطبّق فقط المفاتيح الموجودة في نمط الخلية، فلا نمسح تنسيقًا لم نفهمه من الملف الأصلي
 function applyStyle(ec, s) {
@@ -126,6 +130,11 @@ export async function writeXlsx(wb) {
       if (ws.name !== sh.name) ws.name = sh.name;
       if (sh.rtlChanged) ws.views = [Object.assign({}, ws.views && ws.views[0], { rightToLeft: sh.rtl })];
     }
+    if (sh.freezeEdited) {
+      const v0 = Object.assign({}, ws.views && ws.views[0]); delete v0.xSplit; delete v0.ySplit; delete v0.topLeftCell; delete v0.activePane;
+      ws.views = [sh.freeze && (sh.freeze.rows || sh.freeze.cols) ? Object.assign(v0, { state: 'frozen', xSplit: sh.freeze.cols || undefined, ySplit: sh.freeze.rows || undefined, topLeftCell: (colLetter(sh.freeze.cols) + (sh.freeze.rows + 1)) }) : Object.assign(v0, { state: 'normal' })];
+    }
+    if (sh.cfEdited) ws.conditionalFormattings = (sh.cf || []).map((e) => ({ ref: e.ref, rules: e.rules }));
     keep.add(ws.id);
     const keys = all ? sh.cells.keys() : sh.edited;
     for (const k of keys) {
@@ -150,15 +159,18 @@ export async function writeXlsx(wb) {
   }
   for (const ws of x.worksheets.slice()) if (!keep.has(ws.id)) x.removeWorksheet(ws.id);
   x.calcProperties = Object.assign({}, x.calcProperties, { fullCalcOnLoad: true });
-  return await x.xlsx.writeBuffer();
+  const out = await x.xlsx.writeBuffer();
+  try { return await injectCharts(out, wb); } catch (e) { console.error('inject charts', e); throw new Error('تعذر كتابة الرسوم البيانية في الملف: ' + e.message); }
 }
 
 // بعد الحفظ: الملف الجديد يصبح هو الأصل، وتُمسح قائمة التعديلات
 export async function rebaseAfterSave(wb, buffer) {
   const x = new ExcelJS.Workbook();
+  // الرسوم نكتبها نحن، فنمرّر للمكتبة نسخة بلا طبقة الرسم كي لا تتعثر
+  if (wb.sheets.some((s) => s.charts && s.charts.length)) buffer = await stripDrawings(buffer);
   await x.xlsx.load(buffer);
   const ids = x.worksheets.map((w) => w.id);
-  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
+  wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
   wb.orig = buffer; wb.kind = 'xlsx';
 }
 
@@ -218,8 +230,16 @@ export function lossyFeatures(buffer) {
 export async function readXlsx(buffer, name) {
   const lossy = lossyFeatures(buffer);
   try {
-    const wb = await readXlsxExcelJS(buffer, name);
-    wb.lossy = lossy; return wb;
+    let wb;
+    try { wb = await readXlsxExcelJS(buffer, name); }
+    catch (e0) {
+      if (!lossy.includes('charts')) throw e0;
+      // ملف فيه رسوم تعثّرت المكتبة معه: نقرأ الرسوم بأنفسنا ونمرّر نسخة بلا طبقة الرسم
+      const stripped = await stripDrawings(buffer); wb = await readXlsxExcelJS(stripped, name); wb.orig = stripped;
+    }
+    let nch = 0;
+    try { await readCharts(buffer, wb); nch = wb.sheets.reduce((a, s) => a + (s.charts ? s.charts.length : 0), 0); } catch (e) { console.warn('charts', e); }
+    wb.lossy = nch ? lossy.filter((k) => k !== 'charts') : lossy; return wb;
   } catch (e) {
     console.warn('ExcelJS failed, falling back to SheetJS:', e);
     const wb = readSheetJS(buffer, name);

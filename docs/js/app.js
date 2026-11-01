@@ -12,6 +12,9 @@ import { applyTheme } from './theme.js';
 import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { install as installTools } from './tools.js';
+import { installCF } from './cf.js';
+import { installFreeze } from './freeze.js';
+import { installCharts } from './chartui.js';
 import { install as installKbd, installUnsup } from './kbd.js';
 import { shareBlob, printPage, isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
@@ -1055,5 +1058,8 @@ const app = window.app = {
 };
 
 installTools(app);
+installCharts(Pane, app);
+installFreeze(Pane, app);
+installCF(app);
 app.init();
 installKbd(app); installUnsup(app);

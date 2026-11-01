@@ -10,7 +10,7 @@ const ROWS = [
 
 export function install(app) {
   const el = document.createElement('div'); el.id = 'kbd'; el.dir = 'ltr'; el.hidden = true; el.setAttribute('role', 'group'); el.setAttribute('aria-label', tr('لوحة المفاتيح'));
-  el.innerHTML = ROWS.map((r) => `<div class="kr">${r.map(([t, act, cls, ch]) => `<div class="kk ${cls || ''}" role="button" data-k="${act || 'ch'}" data-c="${ch || t}">${t}</div>`).join('')}</div>`).join('');
+  el.innerHTML = `<div class="kh"><div class="kk fn sm" role="button" data-k="side" title="${tr('نقل لوحة الأرقام إلى الجهة الأخرى')}">⇄</div></div>` + ROWS.map((r) => `<div class="kr">${r.map(([t, act, cls, ch]) => `<div class="kk ${cls || ''}" role="button" data-k="${act || 'ch'}" data-c="${ch || t}">${t}</div>`).join('')}</div>`).join('');
   const sb = document.querySelector('.statusbar'); sb.parentNode.insertBefore(el, sb);
   sb.insertAdjacentHTML('afterbegin', `<button id="kbd-toggle" class="kbd-toggle" title="${tr('إظهار/إخفاء لوحة الأرقام')}" aria-label="${tr('إظهار/إخفاء لوحة الأرقام')}">⌨</button>`);
 
@@ -18,6 +18,7 @@ export function install(app) {
   app.kpActive = () => (settings.keypad === undefined ? coarse() : settings.keypad === true);
   app.syncKbd = () => {
     const p = app.pane(), on = app.kpActive() && p && p.sh && document.getElementById('backstage').hidden;
+    el.classList.toggle('side-l', settings.kpSide === 'left'); el.classList.toggle('side-r', settings.kpSide !== 'left');
     el.hidden = !on; document.body.classList.toggle('has-kbd', !!on);
     const t = document.getElementById('kbd-toggle'); if (t) t.classList.toggle('on', app.kpActive());
   };
@@ -34,6 +35,7 @@ export function install(app) {
   const caret = (p, d) => { const ed = target(p), rtl = ed.dir === 'rtl', n = Math.max(0, Math.min(ed.value.length, (ed.selectionStart || 0) + (rtl ? -d : d))); ed.setSelectionRange(n, n); };
   const press = (k, c) => {
     const p = app.pane(); if (!p || !p.sh) return;
+    if (k === 'side') { saveSettings({ kpSide: settings.kpSide === 'left' ? 'right' : 'left' }); app.syncKbd(); return; }
     if (k === 'ch' || k === 'op') return insert(p, c);
     if (k === 'bs') {
       if (!p.editing) { p.startEdit('', 'enter'); return; }
