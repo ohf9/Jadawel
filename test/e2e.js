@@ -71,9 +71,11 @@ let fails = 0; const check = (cond, msg) => { console.log(cond ? '  ✔' : '  �
   check(await val(1, 'B2') === 'Cardamom', 'المصدر لم يتغير (السحب ينسخ ولا ينقل)');
 
   log('6) التنقل بين الملفات دون فقدان التعديلات');
+  await page.evaluate(() => app.ribbonTab('view'));
   await page.click('[data-layout-btn="single"]');
   await page.click('.ftab[data-id] >> nth=1'); await page.click('.ftab[data-id] >> nth=0');
   check(await val(0, 'B2') === 15, 'التعديلات باقية بعد التبديل بين التبويبات');
+  await page.evaluate(() => app.ribbonTab('view'));
   await page.click('[data-layout-btn="h"]');
   await page.waitForTimeout(800); // الحفظ التلقائي
   await page.screenshot({ path: path.join(OUT, '3-after-edits.png') });
@@ -132,6 +134,7 @@ let fails = 0; const check = (cond, msg) => { console.log(cond ? '  ✔' : '  �
   log('11) لقطات بحجم Galaxy Tab S10+ (أفقي وعمودي)');
   await page.setViewportSize({ width: 1400, height: 876 }); await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(OUT, '4-tab-landscape.png') });
+  await page.evaluate(() => app.ribbonTab('view'));
   await page.click('[data-layout-btn="v"]');
   await page.setViewportSize({ width: 876, height: 1400 }); await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(OUT, '5-tab-portrait.png') });

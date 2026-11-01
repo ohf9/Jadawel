@@ -24,6 +24,7 @@ function readStyle(cell) {
   if (fill && fill.type === 'pattern' && fill.pattern === 'solid') { const col = argb(fill.fgColor); if (col) s.fill = col; }
   const al = cell.alignment;
   if (al && ['left', 'center', 'right'].includes(al.horizontal)) s.al = al.horizontal;
+  if (al && al.wrapText) s.wrap = 1;
   if (cell.numFmt && cell.numFmt !== 'General') s.nf = cell.numFmt;
   return Object.keys(s).length ? s : null;
 }
@@ -51,7 +52,7 @@ async function readXlsxExcelJS(buffer, name) {
   const wb = { id: uid(), name, kind: 'xlsx', sheets: [], dirty: false, orig: buffer, handle: null, overwriteOK: false, created: Date.now() };
   x.eachSheet((ws) => {
     const sh = newSheet(ws.name, !!(ws.views && ws.views[0] && ws.views[0].rightToLeft));
-    sh.origId = ws.id;
+    sh.origId = ws.id; sh.tabColor = argb(ws.properties && ws.properties.tabColor);
     ws.eachRow({ includeEmpty: false }, (row, rn) => {
       if (row.height) sh.rowH[rn - 1] = Math.round(row.height * 4 / 3);
       row.eachCell({ includeEmpty: false }, (cell, cn) => {
@@ -99,6 +100,7 @@ function applyStyle(ec, s) {
   }
   if ('fill' in s) ec.fill = s.fill ? { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(s.fill) } } : { type: 'pattern', pattern: 'none' };
   if (s.al) ec.alignment = Object.assign({}, ec.alignment, { horizontal: s.al });
+  if ('wrap' in s) ec.alignment = Object.assign({}, ec.alignment, { wrapText: !!s.wrap });
   if (s.nf) ec.numFmt = s.nf;
 }
 

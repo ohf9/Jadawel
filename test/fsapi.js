@@ -12,7 +12,7 @@ let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) f
  }, buf);
  await p.goto('http://localhost:8765/'); await p.evaluate(()=>indexedDB.deleteDatabase('jadawel')); await p.reload(); await p.waitForTimeout(400);
  console.log('• حفظ بواسطة File System Access (المتصفحات التي تدعمه)');
- await p.click('#btn-open'); await p.waitForFunction(()=>app.wbs.length===1);
+ await p.evaluate(()=>app.openDialog()); await p.waitForFunction(()=>app.wbs.length===1);
  await p.evaluate(()=>app.applyChanges(app.wbs[0], app.wbs[0].sheets[0], [{r:1,c:2,cell:{v:999}}]));
  await p.keyboard.press('Control+S'); await p.waitForSelector('dialog[open]');
  check((await p.textContent('dialog h2')).includes("استبدال"), 'يطلب الموافقة قبل استبدال الملف الأصلي');
@@ -20,7 +20,7 @@ let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) f
  let w = await p.evaluate(()=>({writes: window.__writes, picker: window.__savePicker, dirty: app.wbs[0].dirty}));
  check(w.picker===1 && w.writes.length===1 && w.writes[0].name!=='original.xlsx', 'اختيار "نسخة جديدة" لا يلمس الأصل');
  // ملف آخر: استبدال الأصلي
- await p.click('#btn-open'); await p.waitForFunction(()=>app.wbs.length===2);
+ await p.evaluate(()=>app.openDialog()); await p.waitForFunction(()=>app.wbs.length===2);
  await p.evaluate(()=>app.applyChanges(app.wbs[1], app.wbs[1].sheets[0], [{r:1,c:2,cell:{v:5}}]));
  await p.keyboard.press('Control+S'); await p.waitForSelector('dialog[open]');
  await p.click('dialog button:has-text("حفظ في نفس الملف")'); await p.waitForTimeout(500);

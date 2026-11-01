@@ -1,0 +1,25 @@
+// محرك الصيغ: إعادة الحساب بعد التعديل، الدوال الإضافية، الإحالات بين الأوراق
+const { chromium } = require('playwright'); let fails = 0; const check = (c, m) => { console.log(c ? '  ✔' : '  ✘ FAIL', m); if (!c) fails++; };
+(async () => { const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: 1200, height: 800 } })).newPage(); p.on('pageerror', (e) => { console.log('E', e.message); fails++; });
+  await p.goto(process.env.URL || 'http://localhost:8765/'); await p.evaluate(() => { localStorage.clear(); indexedDB.deleteDatabase('jadawel'); }); await p.reload(); await p.waitForTimeout(500);
+  await p.click('.pane[data-pane="0"] .e-new'); await p.waitForFunction(() => app.pane().sh);
+  const set = (r, c, t) => p.evaluate(([r, c, t]) => { const P = app.pane(); P.select(r, c); P.startEdit(t, 'enter'); P.commitEdit(); }, [r, c, t]);
+  const get = (r, c) => p.evaluate(([r, c]) => { const x = app.pane().sh.cells.get(r + ',' + c); return x && x.v; }, [r, c]);
+  for (let i = 0; i < 5; i++) await set(i, 0, String(i + 1));
+  await set(0, 2, '=SUM(A1:A5)'); await set(1, 2, '=C1*2'); await set(2, 2, '=MAX(A1:A5)+MIN(A1:A5)'); await set(3, 2, '=COUNTIF(A1:A5,">2")'); await set(4, 2, '=IF(C1>10,"كبير","صغير")');
+  let r = [await get(0, 2), await get(1, 2), await get(2, 2), await get(3, 2), await get(4, 2)];
+  check(JSON.stringify(r) === JSON.stringify([15, 30, 6, 3, 'كبير']), 'الحساب الأولي ' + r);
+  await set(0, 0, '10');
+  r = [await get(0, 2), await get(1, 2), await get(2, 2)];
+  check(JSON.stringify(r) === JSON.stringify([24, 48, 12]), 'تغيير رقم يحدّث المجاميع والصيغ المتسلسلة ' + r);
+  await set(5, 0, '=AVERAGE(A1:A5)'); await set(6, 0, '=SUMIFS(A1:A5,A1:A5,">2")'); await set(7, 0, '=MEDIAN(A1:A5)'); await set(8, 0, '=MATCH(4,A2:A5,0)'); await set(9, 0, '=TEXTJOIN("-",TRUE,A2:A4)'); await set(10, 0, '=1/0');
+  r = [await get(5, 0), await get(6, 0), await get(7, 0), await get(8, 0), await get(9, 0), await get(10, 0)];
+  check(JSON.stringify(r) === JSON.stringify([4.8, 22, 4, 3, '2-3-4', '#DIV/0!']), 'دوال إضافية ' + JSON.stringify(r));
+  await p.evaluate(() => app.addSheet(app.pane())); await p.waitForTimeout(200);
+  const nm = await p.evaluate(() => app.pane().wb.sheets.map((s) => s.name));
+  await set(0, 0, `='${nm[0]}'!C1+1`);
+  check(await get(0, 0) === 25, 'إحالة لورقة أخرى ' + await get(0, 0));
+  await p.evaluate(() => app.pane().setSheet(0)); await set(1, 0, '20');
+  await p.evaluate(() => app.pane().setSheet(1));
+  const v2 = await get(0, 0); check(v2 === 25 + 18, 'تتابع التحديث بين الأوراق (المتوقع 43) ' + v2);
+  await b.close(); console.log(fails ? fails + ' فشل' : 'نجح المحرك'); process.exit(fails ? 1 : 0); })();

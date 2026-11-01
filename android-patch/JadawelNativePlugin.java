@@ -3,11 +3,18 @@ package com.jadawel.app;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.webkit.WebView;
+
+import androidx.core.content.FileProvider;
 
 import androidx.activity.result.ActivityResult;
 
@@ -20,6 +27,8 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -173,5 +182,46 @@ public class JadawelNativePlugin extends Plugin {
             JSObject r = new JSObject(); r.put("uri", uri.toString()); r.put("name", nameOf(uri));
             call.resolve(r);
         } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
+    }
+
+    /** مشاركة ملف عبر قائمة المشاركة في Android (OneDrive وGoogle Drive والبريد...). */
+    @PluginMethod
+    public void shareFile(PluginCall call) {
+        try {
+            byte[] bytes = Base64.decode(call.getString("data"), Base64.DEFAULT);
+            String name = call.getString("name", "book.xlsx").replaceAll("[\\\\/:*?\"<>|]", "_");
+            String mime = call.getString("mime", XLSX);
+            File dir = new File(getContext().getCacheDir(), "share");
+            dir.mkdirs();
+            File f = new File(dir, name);
+            try (FileOutputStream o = new FileOutputStream(f)) { o.write(bytes); }
+            Uri u = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(mime);
+            send.putExtra(Intent.EXTRA_STREAM, u);
+            send.putExtra(Intent.EXTRA_SUBJECT, name);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, call.getString("title", name));
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(chooser);
+            call.resolve();
+        } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
+    }
+
+    /** طباعة الصفحة الحالية (ومنها حفظ PDF) عبر نظام الطباعة في Android. */
+    @PluginMethod
+    public void printPage(final PluginCall call) {
+        final String name = call.getString("name", "jadawel");
+        getActivity().runOnUiThread(new Runnable() {
+            @Override public void run() {
+                try {
+                    WebView wv = getBridge().getWebView();
+                    PrintManager pm = (PrintManager) getActivity().getSystemService(Context.PRINT_SERVICE);
+                    PrintDocumentAdapter adapter = wv.createPrintDocumentAdapter(name);
+                    pm.print(name, adapter, new PrintAttributes.Builder().build());
+                    call.resolve();
+                } catch (Exception e) { call.reject(String.valueOf(e.getMessage())); }
+            }
+        });
     }
 }

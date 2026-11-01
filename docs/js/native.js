@@ -39,3 +39,19 @@ if (isNative) {
     catch (e) { throw Object.assign(new Error('cancelled'), { name: String(e.message || e).includes('cancel') ? 'AbortError' : 'Error' }); }
   };
 }
+
+// مشاركة ملف عبر قائمة المشاركة في Android (أو Web Share في المتصفح)؛ تعيد false إن لم تتوفر
+export async function shareBlob(blob, name, mime) {
+  if (isNative && N().shareFile) {
+    await N().shareFile({ name, mime, data: await blobToB64(blob), title: name });
+    return true;
+  }
+  const f = new File([blob], name, { type: mime });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return true; }
+  return false;
+}
+// طباعة الصفحة الحالية (أو حفظها PDF من نافذة الطباعة)
+export function printPage(name) {
+  if (isNative && N().printPage) { N().printPage({ name }).catch(() => window.print()); return; }
+  window.print();
+}

@@ -1,0 +1,21 @@
+// تغيير الخط والحجم يظهر فعليًا، وحجم النص لا يتغير بتبديل الخط وحده، والمحرر يطابق خط الخلية
+const { chromium } = require('playwright'); let fails = 0; const check = (c, m) => { console.log(c ? '  ✔' : '  ✘ FAIL', m); if (!c) fails++; };
+(async () => { const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: 1200, height: 800 } })).newPage(); p.on('pageerror', (e) => { console.log('E', e.message); fails++; });
+  await p.goto(process.env.URL || 'http://localhost:8765/'); await p.evaluate(() => { localStorage.clear(); indexedDB.deleteDatabase('jadawel'); }); await p.reload(); await p.waitForTimeout(500);
+  await p.click('.pane[data-pane="0"] .e-new'); await p.waitForFunction(() => app.pane().sh);
+  await p.evaluate(() => { const P = app.pane(); P.sh.cells.set('2,1', { f: 'SUM(A1:A2)', v: 'لا يوجد نتائج' }); P.sh.cells.set('0,0', { v: 'نص' }); P.render(true); });
+  const fs = (r, c) => p.evaluate(([r, c]) => { const P = app.pane(); const el = [...P.cells.children].find((e) => e.style.top === P.rowY[r] + 'px' && e.style.insetInlineStart === P.colX[c] + 'px'); const cs = el && getComputedStyle(el); return el && { size: cs.fontSize, fam: cs.fontFamily.slice(0, 30), h: el.style.height }; }, [r, c]);
+  const before = await fs(0, 0);
+  await p.evaluate(() => { app.pane().select(0, 0); app.setStyle('font', 'Cairo'); }); const f1 = await fs(0, 0);
+  check(f1.size === before.size, 'تبديل الخط وحده لا يغير الحجم ' + before.size + '/' + f1.size);
+  check(/Cairo/.test(f1.fam), 'تغيّر نوع الخط');
+  await p.evaluate(() => { app.pane().select(2, 1); app.setStyle('sz', 36); app.setStyle('font', 'Amiri'); }); await p.waitForTimeout(100);
+  const f2 = await fs(2, 1); check(f2 && parseFloat(f2.size) === 48 && /Amiri/.test(f2.fam), 'خلية صيغة: حجم 48px وخط Amiri ' + JSON.stringify(f2));
+  check(await p.evaluate(() => app.pane().sh.rowH[2] >= 60), 'الصف كبر مع الخط');
+  await p.evaluate(() => app.pane().startEdit());
+  const ed = await p.evaluate(() => { const e = document.querySelector('.pane.active .editor'); const cs = getComputedStyle(e); return { fam: cs.fontFamily.slice(0, 20), size: cs.fontSize, dir: e.dir }; });
+  check(/Amiri/.test(ed.fam) && parseFloat(ed.size) === 48, 'المحرر يطابق خط الخلية ' + JSON.stringify(ed));
+  await p.evaluate(() => { const P = app.pane(); P.cancelEdit(); P.select(5, 2); P.startEdit('=SUM(E9:AC9)', 'edit'); });
+  const w = await p.evaluate(() => { const e = document.querySelector('.pane.active .editor'); return { w: e.offsetWidth, dir: e.dir, r: e.getBoundingClientRect().right }; });
+  check(w.w > 120 && w.dir === 'ltr', 'محرر الصيغة أوسع من الخلية واتجاهه LTR ' + JSON.stringify(w));
+  await b.close(); console.log(fails ? fails + ' فشل' : 'نجح الخط'); process.exit(fails ? 1 : 0); })();

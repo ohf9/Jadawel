@@ -38,29 +38,26 @@
 <header class="titlebar">
   <span class="brand"><svg class="logo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="#fff"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16" stroke="#1e6b41" stroke-width="1.6"/></svg>جداول</span>
   <nav id="tabs" class="tabs" aria-label="الملفات المفتوحة"></nav>
-  <button id="btn-settings" class="tb-icon" title="الإعدادات"><svg><use href="#i-gear"/></svg></button>
+  <button id="btn-save" class="tb-icon" title="حفظ (Ctrl+S)"><svg><use href="#i-save"/></svg></button>
+  <button id="btn-undo" class="tb-icon" title="تراجع (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button>
+  <button id="btn-redo" class="tb-icon" title="إعادة (Ctrl+Y)"><svg><use href="#i-redo"/></svg></button>
+  <button id="btn-share" class="tb-icon" title="مشاركة"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg></button>
 </header>
+<nav class="rtabs" role="tablist">
+  <button data-rt="file" role="tab">ملف</button>
+  <button data-rt="home" role="tab" class="on">الرئيسية</button>
+  <button data-rt="view" role="tab">عرض</button>
+</nav>
 
 <div class="ribbon" role="toolbar">
-  <div class="rg"><div class="rg-body">
-    <button id="btn-files" class="rb big" title="الملفات الأخيرة وأماكن الفتح والحفظ"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.2 2"/></svg><span>الأخيرة</span></button>
-    <button id="btn-new" class="rb big" title="مصنف جديد (Ctrl+N)"><svg><use href="#i-new"/></svg><span>جديد</span></button>
-    <button id="btn-open" class="rb big" title="فتح ملف أو أكثر (Ctrl+O)"><svg><use href="#i-open"/></svg><span>فتح</span></button>
-    <button id="btn-save" class="rb big" title="حفظ في نفس الملف (Ctrl+S)"><svg><use href="#i-save"/></svg><span>حفظ</span></button>
-    <button id="btn-saveas" class="rb big" title="حفظ نسخة باسم آخر (F12)"><svg><use href="#i-saveas"/></svg><span>حفظ باسم</span></button>
-  </div><div class="rg-label">ملف</div></div>
-
+  <div class="rpanel" data-t="home">
   <div class="rg"><div class="rg-body">
     <button id="btn-paste" class="rb big" title="لصق (Ctrl+V)"><svg><use href="#i-paste"/></svg><span>لصق</span></button>
     <div class="col2">
       <button id="btn-cut" class="rb sm" title="قص (Ctrl+X)"><svg><use href="#i-cut"/></svg><span>قص</span></button>
       <button id="btn-copy" class="rb sm" title="نسخ (Ctrl+C)"><svg><use href="#i-copy"/></svg><span>نسخ</span></button>
     </div>
-    <div class="col2">
-      <button id="btn-undo" class="rb sm" title="تراجع (Ctrl+Z)"><svg><use href="#i-undo"/></svg><span>تراجع</span></button>
-      <button id="btn-redo" class="rb sm" title="إعادة (Ctrl+Y)"><svg><use href="#i-redo"/></svg><span>إعادة</span></button>
-    </div>
-  </div><div class="rg-label">الحافظة والتحرير</div></div>
+  </div></div>
 
   <div class="rg"><div class="rg-body">
     <div class="col2">
@@ -78,7 +75,7 @@
         <span class="split"><button id="fm-fill" class="rb icon clr" title="لون التعبئة"><svg><use href="#i-fill"/></svg><i id="fm-fill-bar" class="bar"></i></button><button id="fm-fill-dd" class="rb arr" title="ألوان التعبئة">▾</button></span>
       </div>
     </div>
-  </div><div class="rg-label">الخط</div></div>
+  </div></div>
 
   <div class="rg"><div class="rg-body">
     <div class="col2">
@@ -87,9 +84,11 @@
         <button id="fm-ac" class="rb icon" title="توسيط"><svg><use href="#i-ac"/></svg></button>
         <button id="fm-ar" class="rb icon" title="محاذاة لليمين"><svg><use href="#i-ar"/></svg></button>
       </div>
-      <div class="row"><span class="mut">&nbsp;</span></div>
+      <div class="row">
+        <button id="fm-wrap" class="rb sm wrapb" title="التفاف النص"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M4 18h5"/><path d="M15 16l-2 2 2 2"/></svg><span>التفاف</span></button>
+      </div>
     </div>
-  </div><div class="rg-label">المحاذاة</div></div>
+  </div></div>
 
   <div class="rg"><div class="rg-body">
     <div class="col2">
@@ -99,15 +98,27 @@
         <button id="fm-decp" class="rb icon txt ltr" title="زيادة الخانات العشرية">+.0</button>
       </div>
     </div>
-  </div><div class="rg-label">الأرقام</div></div>
+  </div></div>
 
+  <div class="rg"><div class="rg-body">
+    <button id="btn-autosum" class="rb big" title="جمع تلقائي (Alt+=)"><svg viewBox="0 0 24 24"><path d="M18 5H7l6 7-6 7h11"/></svg><span>جمع تلقائي</span></button>
+    <button id="btn-clear" class="rb big" title="مسح المحتوى (Delete)"><svg viewBox="0 0 24 24"><path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/></svg><span>مسح</span></button>
+  </div></div>
+  </div>
+
+  <div class="rpanel" data-t="view" hidden>
   <div class="rg"><div class="rg-body">
     <button data-layout-btn="single" class="rb big on" title="ملف واحد"><svg><use href="#i-single"/></svg><span>لوحة واحدة</span></button>
     <button data-layout-btn="h" class="rb big" title="لوحتان جنبًا إلى جنب"><svg><use href="#i-h"/></svg><span>جنبًا إلى جنب</span></button>
     <button data-layout-btn="v" class="rb big" title="لوحتان فوق بعض"><svg><use href="#i-v"/></svg><span>فوق بعض</span></button>
     <button id="btn-second" class="rb big" title="اعرض الملف الحالي في لوحتين لتتحكم بورقتين منه معًا"><svg><use href="#i-second"/></svg><span>ورقتان معًا</span></button>
     <button id="btn-win" class="rb big" title="افتح نافذة مستقلة جديدة من التطبيق"><svg><use href="#i-win"/></svg><span>نافذة جديدة</span></button>
-  </div><div class="rg-label">العرض</div></div>
+  </div></div>
+  <div class="rg"><div class="rg-body">
+    <button id="btn-grid" class="rb big on" title="إظهار خطوط الشبكة"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16"/></svg><span>خطوط الشبكة</span></button>
+    <button id="btn-dir" class="rb big" title="اتجاه الورقة (يمين لليسار / يسار لليمين)"><svg viewBox="0 0 24 24"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg><span>اتجاه الورقة</span></button>
+  </div></div>
+  </div>
 </div>
 
 <main id="workspace" data-layout="single"></main>
@@ -144,34 +155,53 @@
 </dialog>
 <div id="backstage" hidden role="dialog" aria-modal="true">
   <nav class="bs-nav">
-    <button class="bs-back" id="bs-close" title="رجوع">➜ رجوع</button>
-    <button data-p="recent" class="on">الأخيرة</button>
+    <button class="bs-back" id="bs-close" title="رجوع"><svg viewBox="0 0 24 24"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button>
     <button data-p="new">جديد</button>
-    <button data-p="open">فتح</button>
+    <button data-p="open" class="on">فتح</button>
+    <button data-act="save">حفظ</button>
     <button data-p="saveas">حفظ باسم</button>
+    <button data-act="print">طباعة</button>
+    <button data-p="share">مشاركة</button>
+    <button data-p="export">تصدير</button>
+    <button data-act="close">إغلاق</button>
+    <hr>
+    <button data-act="settings">الإعدادات</button>
   </nav>
   <main class="bs-main">
-    <section data-p="recent">
-      <div class="bs-h"><h2>الأخيرة</h2><button class="mini" id="bs-clear">مسح القائمة</button></div>
-      <div id="bs-list"></div>
-    </section>
     <section data-p="new" hidden>
       <h2>جديد</h2>
-      <div class="bs-cards"><button class="card" id="bs-new"><b>مصنف فارغ</b><span>ابدأ بجدول جديد بإعدادات اتجاه الأوراق الحالية.</span></button></div>
+      <div class="bs-cards"><button class="card" id="bs-new"><b>مصنف فارغ</b><span>ابدأ بجدول جديد.</span></button></div>
     </section>
-    <section data-p="open" hidden>
+    <section data-p="open">
       <h2>فتح</h2>
       <div class="bs-cards">
-        <button class="card" id="bs-open-dev"><b>📱 هذا الجهاز</b><span>تصفح ملفات التخزين الداخلي والتنزيلات والمستندات.</span></button>
-        <button class="card" id="bs-open-cloud"><b>☁ OneDrive وGoogle Drive وبطاقة SD</b><span>تظهر في نافذة اختيار الملفات (القائمة الجانبية) إن كان تطبيقها مثبتًا على الجهاز. نفتح الملف مباشرة من مكانه ونحفظ فيه عند الحفظ.</span></button>
+        <button class="card" id="bs-open-dev"><b>📱 هذا الجهاز</b><span>ملفات التخزين الداخلي والتنزيلات والمستندات وبطاقة SD.</span></button>
+        <button class="card" id="bs-open-cloud"><b>☁ OneDrive وGoogle Drive</b><span>تظهر في نافذة اختيار الملفات (القائمة الجانبية) إن كان تطبيقها مثبتًا. يُفتح الملف من مكانه ويُحفظ فيه.</span></button>
       </div>
-      <p class="note">يمكنك أيضًا فتح الملفات من مدير الملفات: اختر «جداول» من «فتح بواسطة».</p>
+      <div class="bs-h"><h3>الأخيرة</h3><button class="mini" id="bs-clear">مسح القائمة</button></div>
+      <div id="bs-list"></div>
     </section>
     <section data-p="saveas" hidden>
       <h2>حفظ باسم</h2>
       <div class="bs-cards">
         <button class="card" id="bs-save-x"><b>📗 مصنف Excel (XLSX)</b><span>اختر المكان من نافذة النظام: الجهاز أو OneDrive أو Google Drive أو بطاقة SD.</span></button>
         <button class="card" id="bs-save-c"><b>📄 CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+      </div>
+    </section>
+    <section data-p="share" hidden>
+      <h2>مشاركة</h2>
+      <div class="bs-cards">
+        <button class="card" id="bs-share-x"><b>📗 إرسال نسخة Excel</b><span>يفتح قائمة المشاركة في الجهاز: OneDrive وGoogle Drive والبريد وواتساب وغيرها.</span></button>
+        <button class="card" id="bs-share-c"><b>📄 إرسال نسخة CSV</b><span>القيم فقط للورقة الحالية.</span></button>
+        <button class="card" id="bs-share-p"><b>🖨 إرسال PDF</b><span>اختر «حفظ كملف PDF» من نافذة الطباعة ثم شاركه.</span></button>
+      </div>
+    </section>
+    <section data-p="export" hidden>
+      <h2>تصدير</h2>
+      <div class="bs-cards">
+        <button class="card" id="bs-exp-pdf"><b>📕 إنشاء PDF</b><span>يفتح نافذة الطباعة، اختر منها «حفظ كملف PDF».</span></button>
+        <button class="card" id="bs-exp-x"><b>📗 تصدير كـ XLSX</b><span>حفظ نسخة جديدة بصيغة Excel.</span></button>
+        <button class="card" id="bs-exp-c"><b>📄 تصدير كـ CSV</b><span>القيم فقط للورقة الحالية.</span></button>
       </div>
     </section>
   </main>
@@ -187,6 +217,7 @@
 <div id="toasts"></div>
 <script src="vendor/exceljs.min.js"></script>
 <script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/formula-parser.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

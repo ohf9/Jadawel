@@ -87,7 +87,7 @@ svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-l
 .lines i{position:absolute;background:var(--s-line)}
 :root[data-sheet="dark"] .c.f{color:#1f2328}
 .vl{width:1px}.hl{height:1px}
-.c{position:absolute;padding:0 4px;line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:clip;pointer-events:none;text-align:start;unicode-bidi:plaintext}
+.c{position:absolute;padding:0 4px;line-height:25px;font-size:14.667px;white-space:nowrap;overflow:hidden;text-overflow:clip;pointer-events:none;text-align:start;unicode-bidi:plaintext}
 .c.n{text-align:end;unicode-bidi:isolate}
 .scroller[dir="rtl"] .c.n{text-align:left}
 .scroller[dir="ltr"] .c.n{text-align:right}
@@ -98,11 +98,11 @@ svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-l
 .marq{position:absolute;display:none;pointer-events:none;outline:2px dashed var(--accent);outline-offset:-1px;animation:m 1s linear infinite}
 @keyframes m{50%{outline-color:#9cc9ad}}
 .drop{position:absolute;display:none;pointer-events:none;border:2px dashed #1565c0;background:rgba(21,101,192,.12);z-index:5}
-.editor{position:absolute;display:none;z-index:6;border:2px solid var(--accent);margin:-1px;padding:0 3px;font:inherit;background:var(--s-ed);color:var(--s-text);outline:none;box-shadow:0 2px 8px rgba(0,0,0,.2);user-select:text;-webkit-user-select:text}
+.editor{position:absolute;display:none;z-index:6;border:2px solid var(--accent);margin:-1px;padding:0 3px;font:inherit;font-size:14.667px;background:var(--s-ed);color:var(--s-text);outline:none;box-shadow:0 2px 8px rgba(0,0,0,.2);user-select:text;-webkit-user-select:text}
 .sheets{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);background:var(--chrome);padding:3px 6px;min-height:36px}
 .sheet-tabs{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:thin}
-.stab{border:1px solid var(--line);background:var(--stab);border-radius:0 0 6px 6px;padding:4px 14px;white-space:nowrap;min-height:30px}
-.stab.on{background:var(--paper);color:var(--accent);font-weight:700;border-top:2px solid var(--accent)}
+.stab{border-top:3px solid var(--tc,transparent);border:1px solid var(--line);border-top:3px solid var(--tc,transparent);background:var(--stab);border-radius:0 0 6px 6px;padding:4px 14px;white-space:nowrap;min-height:30px}
+.stab.on{background:var(--paper);color:var(--accent);font-weight:700;border-top:3px solid var(--tc,var(--accent))}
 .empty{display:none;flex:1;align-items:center;justify-content:center;text-align:center;color:var(--muted);line-height:1.9}
 .pane.is-empty .empty{display:flex}
 .pane.is-empty .fbar,.pane.is-empty .scroller,.pane.is-empty .sheets,.pane.is-empty .dir-btn{display:none}
@@ -186,10 +186,10 @@ dialog .note{color:var(--muted);font-size:12px;margin:0 0 14px}
 #set-sheet-wrap[hidden]{display:none}
 
 /* ====== مقابض التحديد وشريط الأدوات العائم ====== */
-.hnd{position:absolute;display:none;width:22px;height:22px;margin-inline-start:-11px;margin-top:-11px;border-radius:50%;background:var(--paper);border:2.5px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:7;touch-action:none;cursor:pointer;animation:hpop .18s cubic-bezier(.2,.8,.2,1)}
+.hnd{position:absolute;display:none;width:14px;height:14px;margin-inline-start:-7px;margin-top:-7px;border-radius:50%;background:var(--paper);border:2px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:7;touch-action:none;cursor:pointer;animation:hpop .18s cubic-bezier(.2,.8,.2,1)}
 @keyframes hpop{from{transform:scale(.3);opacity:0}}
-.fillh.bar{width:44px;height:8px;margin-inline-start:-22px;margin-top:-4px;border-radius:5px;border:1.5px solid var(--paper);cursor:crosshair;box-shadow:0 1px 3px rgba(0,0,0,.35)}
-.fillh.bar::after{inset:-8px -6px}
+.fillh.bar{width:30px;height:6px;margin-inline-start:-15px;margin-top:-3px;border-radius:4px;border:1.5px solid var(--paper);cursor:crosshair;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.fillh.bar::after{inset:-7px -6px}
 #minibar{position:fixed;z-index:70;display:flex;gap:2px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;box-shadow:0 8px 28px rgba(0,0,0,.3);opacity:0;transform:translateY(6px) scale(.96);transition:opacity .14s,transform .16s cubic-bezier(.2,.8,.2,1)}
 #minibar[hidden]{display:none}
 #minibar.in{opacity:1;transform:none}
@@ -222,3 +222,35 @@ dialog .note{color:var(--muted);font-size:12px;margin:0 0 14px}
 .card b{font-size:16px}.card span{color:var(--muted);line-height:1.6;font-size:13px}
 .bs-main .note{color:var(--muted);font-size:13px;margin-top:16px}
 @media (max-width:700px){#backstage{flex-direction:column}.bs-nav{width:auto;flex-direction:row;overflow-x:auto;padding:6px}.bs-nav .bs-back{margin:0}.bs-nav button{white-space:nowrap}}
+
+.file-switch{border:0;background:transparent;border-radius:8px;padding:3px 8px;text-align:start;color:inherit;font:inherit;font-weight:600;cursor:pointer}
+.file-switch:hover{background:var(--hover)}.file-switch::after{content:" ▾";font-size:10px;opacity:.7}
+.menu-files{width:min(320px,92vw)}.menu-files .fn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ====== شريط التبويبات (ملف / الرئيسية / عرض) ====== */
+.rtabs{display:flex;gap:2px;background:var(--title);padding:0 8px;overflow-x:auto;scrollbar-width:none}
+.rtabs button{border:0;background:transparent;color:rgba(255,255,255,.88);padding:9px 18px;font-size:14.5px;border-radius:8px 8px 0 0;min-height:40px;transition:background .15s}
+.rtabs button:hover{background:rgba(255,255,255,.14)}
+.rtabs button.on{background:var(--ribbon);color:var(--text);font-weight:700}
+.rpanel{display:flex;align-items:stretch;flex:none;min-width:0}
+.rpanel[hidden]{display:none}
+.ribbon{padding:2px 6px}
+.rg{padding:0 6px}.rg-body{min-height:56px}.rg-label{display:none}
+.rb.big{height:54px;min-width:52px;padding:4px}
+.ribbon .rg:last-child{border-inline-end:0}
+.titlebar .brand span{display:inline}
+.tb-icon.sm{width:34px;height:34px}
+#backstage .bs-nav hr{border:0;border-top:1px solid rgba(255,255,255,.25);margin:8px 6px;width:calc(100% - 12px)}
+#backstage .bs-back svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2}
+.bs-main h3{margin:22px 0 8px;font-size:16px}
+.bs-h h3{margin:22px 0 4px}
+body.nogrid .lines{display:none}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;display:block!important;background:#fff!important}
+  body>*:not(#print-area){display:none!important}
+  #print-area{display:block!important;color:#000}
+  #print-area table{border-collapse:collapse;table-layout:fixed}
+  #print-area td{border:1px solid #bbb;padding:1px 4px;overflow:hidden;font-size:11pt;white-space:nowrap;vertical-align:middle}
+}
+#print-area{display:none}
+.dir-btn{display:none!important}

@@ -3,7 +3,7 @@ let fails=0; const check=(c,m)=>{console.log(c?'  ✔':'  ✘ FAIL',m); if(!c) f
 (async () => { const b = await chromium.launch(); const p = await b.newPage({viewport:{width:1400,height:876}});
  const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  await p.goto('http://localhost:8765/'); await p.evaluate(()=>indexedDB.deleteDatabase('jadawel')); await p.reload(); await p.waitForTimeout(500);
- check(await p.evaluate(()=>app.layout)==='single','يبدأ التطبيق بلوحة واحدة مثل Excel'); await p.click('[data-layout-btn="h"]');
+ check(await p.evaluate(()=>app.layout)==='single','يبدأ التطبيق بلوحة واحدة مثل Excel'); await p.evaluate(()=>app.ribbonTab('view')); await p.click('[data-layout-btn="h"]');
  await p.click('.pane[data-pane="0"] .e-new'); await p.waitForFunction(()=>app.panes[0].wb);
  await p.click('.pane[data-pane="1"] .e-new'); await p.waitForFunction(()=>app.panes[1].wb);
  check(await p.evaluate(()=>app.wbs.length)===2,'زر "مصنف جديد" في كل لوحة');

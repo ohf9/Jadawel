@@ -19,7 +19,7 @@ export class Pane {
     const el = this.el = document.createElement('section');
     el.className = 'pane'; el.dataset.pane = idx;
     el.innerHTML = `
-      <div class="pane-head"><span class="pane-num">${idx + 1}</span><span class="pane-title"></span><span class="warn" title="محرك حساب الصيغ يأتي في المرحلة 3. القيم المعروضة للصيغ هي آخر قيم محسوبة في الملف، وExcel يعيد حسابها تلقائيًا عند فتح الملف المحفوظ.">⚠ الصيغ لا يُعاد حسابها بعد</span>
+      <div class="pane-head"><span class="pane-num">${idx + 1}</span><button class="pane-title file-switch" type="button"></button><span class="warn" style="display:none"></span>
         <button class="mini dir-btn" title="اتجاه الورقة (يمين لليسار / يسار لليمين)">⇄ اتجاه الورقة</button></div>
       <div class="fbar"><input class="namebox" aria-label="مرجع الخلية" spellcheck="false"><span class="fx">fx</span>
         <input class="formula" aria-label="شريط الصيغة" spellcheck="false" dir="auto"></div>
@@ -33,8 +33,8 @@ export class Pane {
         </div>
       </div>
       <textarea class="sink" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="الشبكة"></textarea>
-      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="cta e-new">＋ مصنف جديد</button><button class="cta e-open">📂 فتح ملف</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
-      <div class="sheets"><div class="sheet-tabs"></div><button class="mini add-sheet" title="ورقة جديدة">+ ورقة</button></div>`;
+      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="cta e-new">＋ مصنف جديد</button><button class="cta e-open">📂 فتح ملف</button><button class="cta e-open e-pick" hidden>🗂 اختر من الملفات المفتوحة</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
+      <div class="sheets"><button class="mini add-sheet" title="ورقة جديدة">＋</button><div class="sheet-tabs"></div></div>`;
     host.appendChild(el);
     const $ = (s) => el.querySelector(s);
     Object.assign(this, { title: $('.pane-title'), namebox: $('.namebox'), formula: $('.formula'), scroller: $('.scroller'), canvas: $('.canvas'),
@@ -72,13 +72,17 @@ export class Pane {
   refreshHead() {
     if (!this.wb) return;
     this.title.textContent = this.wb.name + (this.wb.dirty ? ' •' : '');
-    const stale = this.wb.dirty && this.wb.sheets.some((sh) => { for (const c of sh.cells.values()) if (c.f != null) return true; return false; });
-    this.warn.style.display = stale ? '' : 'none';
+    const un = this.wb._unsup && this.wb._unsup.size ? [...this.wb._unsup].slice(0, 4).join('، ') : '';
+    this.warn.style.display = un ? '' : 'none';
+    if (un) { this.warn.textContent = tr('⚠ دوال غير مدعومة: ') + un; this.warn.title = tr('هذه الدوال لا يحسبها التطبيق بعد، فتبقى قيمها كما حُفظت في الملف، وExcel يعيد حسابها عند فتح الملف.'); }
     this.title.title = tr(this.wb.dirty ? 'توجد تعديلات غير محفوظة (محفوظة تلقائيًا للاستعادة)' : 'لا توجد تعديلات غير محفوظة');
   }
   renderTabs() {
     const si = this.wb.sheets.indexOf(this.sh);
-    this.tabs.innerHTML = this.wb.sheets.map((s, i) => `<button class="stab${i === si ? ' on' : ''}" data-i="${i}">${esc(s.name)}</button>`).join('');
+    // شريط الأوراق يتبع اتجاه الورقة كما في Excel: الورقة الأولى عند بداية الاتجاه وزر الإضافة قبلها
+    this.el.querySelector('.sheets').dir = this.sh && this.sh.rtl ? 'rtl' : 'ltr';
+    this.tabs.innerHTML = this.wb.sheets.map((s, i) => `<button class="stab${i === si ? ' on' : ''}" data-i="${i}"${s.tabColor ? ` style="--tc:${s.tabColor}"` : ''}>${esc(s.name)}</button>`).join('');
+    const on = this.tabs.querySelector('.stab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   setScrollX(x) { this.scroller.scrollLeft = this.sh && this.sh.rtl ? -x : x; }
 
@@ -131,7 +135,7 @@ export class Pane {
         if (!num && txt && !(s && (s.al || s.fill))) {
           let k = c + 1; while (k <= c1 + 6 && k < sh.ncols && !cells.has(key(r, k)) && k - c < 12) { w += cx[k + 1] - cx[k]; k++; }
         }
-        let st2 = `inset-inline-start:${cx[c]}px;top:${ry[r]}px;width:${w}px;height:${ry[r + 1] - ry[r]}px;`;
+        let st2 = `inset-inline-start:${cx[c]}px;top:${ry[r]}px;width:${w}px;height:${ry[r + 1] - ry[r]}px;line-height:${ry[r + 1] - ry[r] - 1}px;`;
         let cls = 'c';
         if (num) cls += ' n';
         if (cell.f != null && cell.v === undefined) cls += ' pending';
@@ -140,6 +144,7 @@ export class Pane {
           if (s.color) st2 += `color:${s.color};`; if (s.fill) { st2 += `background:${s.fill};`; if (!s.color) cls += ' f'; }
           if (s.font) st2 += `font-family:${fontCss(s.font)};`; if (s.sz) st2 += `font-size:${s.sz * 4 / 3}px;`;
           if (s.al) st2 += `text-align:${s.al};`;
+          if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;'; cls += ' wr'; }
         }
         html += `<div class="${cls}" style="${st2}">${esc(txt)}</div>`;
       }
@@ -224,15 +229,33 @@ export class Pane {
     const cell = this.sh.cells.get(key(s.ar, s.ac));
     this.editing = { r: s.ar, c: s.ac, mode, orig: rawText(cell) };
     const ed = this.editor;
-    ed.dir = this.sh.rtl ? 'rtl' : 'ltr'; // dir=auto كان يقلب موضع المحرر عند كتابة الأرقام فيقفز الشيت
     this.box(ed, s.ar, s.ac, s.ar, s.ac);
-    // عرض ثابت (لا يتمدد مع الكتابة) كي لا يتحرك الشيت أثناء الإدخال
-    ed.style.minWidth = ''; ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
-    this.editing.w = parseFloat(ed.style.width) || 96;
+    const st = (cell && cell.s) || {};
+    ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
+    ed.style.fontFamily = st.font ? fontCss(st.font) : ''; ed.style.fontSize = st.sz ? `${st.sz * 4 / 3}px` : '';
+    ed.style.fontWeight = st.b ? '700' : ''; ed.style.fontStyle = st.i ? 'italic' : '';
+    // الموضع بخصائص فيزيائية كي لا يتأثر بتغيّر اتجاه النص داخل المحرر
+    const rtl = this.sh.rtl, x0 = this.colX[s.ac];
+    ed.style.insetInlineStart = 'auto'; ed.style.left = rtl ? 'auto' : x0 + 'px'; ed.style.right = rtl ? x0 + 'px' : 'auto';
+    this.editing.w = this.colX[s.ac + 1] - x0; this.editing.x0 = x0;
     ed.value = initial != null ? initial : this.editing.orig;
+    this.fitEditor();
     this.formula.value = ed.value;
     ed.focus({ preventScroll: true });
     const n = ed.value.length; ed.setSelectionRange(n, n);
+  }
+  // الصيغ والأرقام تُكتب من اليسار لليمين (كما في Excel)، والنص بحسب اتجاه الورقة؛ والمحرر يتسع مع النص دون أن يخرج من الشاشة
+  fitEditor() {
+    const ed = this.editor, v = ed.value, e = this.editing; if (!e) return;
+    const ltr = /^[=+\-@]/.test(v) || /^[\d.,\-+%$ ]*$/.test(v) && v !== '';
+    ed.dir = ltr ? 'ltr' : (this.sh.rtl ? 'rtl' : 'ltr'); ed.style.textAlign = ltr ? 'left' : '';
+    const m = this._m || (this._m = document.createElement('canvas').getContext('2d'));
+    const cs = getComputedStyle(ed); m.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const need = Math.ceil(m.measureText(v).width) + 28;
+    const sc = this.scroller, vis = sc.clientWidth - HDR_W - 8;
+    const startVis = this.sh.rtl ? Math.abs(sc.scrollLeft) : sc.scrollLeft;
+    const room = Math.max(e.w, vis - Math.max(0, e.x0 - startVis));
+    ed.style.width = Math.min(Math.max(e.w, need), room) + 'px';
   }
   commitEdit(fromFormula) {
     const e = this.editing; if (!e) return false;
@@ -419,7 +442,7 @@ export class Pane {
     const relock = () => { if (lock) { const sc = this.scroller; if (sc.scrollLeft !== lock.l) sc.scrollLeft = lock.l; if (sc.scrollTop !== lock.t) sc.scrollTop = lock.t; } };
     ed.addEventListener('keydown', () => { lock = { l: this.scroller.scrollLeft, t: this.scroller.scrollTop }; setTimeout(() => { relock(); lock = null; }, 0); }, true);
     this.scroller.addEventListener('scroll', () => { if (lock) relock(); });
-    ed.addEventListener('input', () => { this.formula.value = ed.value; relock(); });
+    ed.addEventListener('input', () => { this.formula.value = ed.value; this.fitEditor(); relock(); });
     ed.addEventListener('keydown', (e) => {
       e.stopPropagation();
       const k = e.key;
@@ -471,8 +494,10 @@ export class Pane {
     this.tabs.addEventListener('dblclick', (e) => { const b = e.target.closest('.stab'); if (b) this.app.renameSheet(this, +b.dataset.i); });
     this.tabs.addEventListener('contextmenu', (e) => { const b = e.target.closest('.stab'); if (b) { e.preventDefault(); this.app.sheetMenu(this, +b.dataset.i); } });
     this.el.querySelector('.add-sheet').addEventListener('click', () => this.app.addSheet(this));
+    this.title.addEventListener('click', () => this.app.openFileMenu(this, this.title));
     this.el.querySelector('.e-new').addEventListener('click', () => this.app.newWb(this.idx));
-    this.el.querySelector('.e-open').addEventListener('click', () => this.app.openDialog(this.idx));
+    this.el.querySelector('.e-open:not(.e-pick)').addEventListener('click', () => this.app.openDialog(this.idx));
+    this.el.querySelector('.e-pick').addEventListener('click', (e) => { this.app.setActive(this.idx); this.app.openFileMenu(this, e.currentTarget); });
     this.el.querySelector('.dir-btn').addEventListener('click', () => this.app.toggleDir(this));
   }
   // ---------- تغيير حجم الأعمدة والصفوف ----------

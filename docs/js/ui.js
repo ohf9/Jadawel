@@ -77,3 +77,12 @@ export function nfMenu(anchor, presets, current, pick) {
   el.addEventListener('click', (e) => { const b = e.target.closest('.it'); if (!b) return; closePopover(); pick(b.dataset.v); });
   return openPopover(anchor, el);
 }
+
+// قائمة اختيار ملف اللوحة: الملفات المفتوحة + فتح ملف آخر
+export function fileMenu(anchor, wbs, current, onPick, onOpen, onNew, onRecent) {
+  const el = document.createElement('div'); el.className = 'menu-files';
+  el.innerHTML = `<div class="mh">${tr('اعرض في هذه اللوحة')}</div>` + wbs.map((w, i) => `<button class="it${w === current ? ' on' : ''}" data-i="${i}"><span class="ck">✓</span><span class="fn" style="unicode-bidi:plaintext">${esc(w.name)}${w.dirty ? ' •' : ''}</span></button>`).join('')
+    + `<div class="sep"></div><button class="it" data-a="open">📂 ${tr('فتح ملف آخر في هذه اللوحة…')}</button><button class="it" data-a="recent">🕘 ${tr('الأخيرة')}</button><button class="it" data-a="new">＋ ${tr('مصنف جديد في هذه اللوحة')}</button>`;
+  el.addEventListener('click', (e) => { const b = e.target.closest('.it'); if (!b) return; closePopover(); if (b.dataset.a === 'open') onOpen(); else if (b.dataset.a === 'new') onNew(); else if (b.dataset.a === 'recent') onRecent(); else onPick(wbs[+b.dataset.i]); });
+  return openPopover(anchor, el);
+}
