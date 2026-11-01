@@ -4,6 +4,7 @@ import { newSheet } from './io.js';
 import { recalc } from './calc.js';
 import { tr, lang, translateDom } from './i18n.js';
 import { openPopover, closePopover } from './ui.js';
+import { sigEn } from './i18n-more.js';
 import { FN_CATS, FNS, ALL_FNS } from './fnlib.js';
 
 const $ = (s) => document.querySelector(s);
@@ -33,6 +34,7 @@ const ICONS = {
   zin: '<circle cx="10" cy="10" r="6"/><path d="M15 15l5 5M10 7v6M7 10h6"/>',
   zout: '<circle cx="10" cy="10" r="6"/><path d="M15 15l5 5M7 10h6"/>',
   z100: '<circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/><path d="M8 8.5l1.5-1v5"/>',
+  swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
   fbar: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h4"/>',
   clear: '<path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/>',
   fillc: '<path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 20h14"/>',
@@ -54,11 +56,12 @@ const RIBBON = {
     + G(B('filter', 'filter', 'تصفية', 'تشغيل/إيقاف التصفية (أسهم فوق الأعمدة)'), B('clearFilter', 'filter', 'مسح التصفية', 'إظهار كل الصفوف المخفية بالتصفية'))
     + G(B('removeDup', 'dup', 'حذف المكرر', 'حذف الصفوف المكررة في التحديد'), B('textToCols', 't2c', 'نص إلى أعمدة', 'تقسيم نص العمود إلى أعمدة بفاصل')),
 };
-const HOME_EXTRA = G(B('mergeMenu', 'merge', 'دمج الخلايا', 'دمج وتوسيط / دمج / فصل'), B('borderMenu', 'border', 'حدود', 'حدود الخلايا'))
+const NFB = G(`<div class="col2"><div class="row"><button class="rb icon txt ltr" data-act="nf:0%" title="نمط النسبة المئوية">%</button><button class="rb icon txt ltr" data-act="nf:#,##0.00" title="نمط الفاصلة (آلاف)">000</button><button class="rb icon txt ltr" data-act="nf:$#,##0.00" title="نمط العملة">$</button></div></div>`);
+const HOME_EXTRA = NFB + G(B('mergeMenu', 'merge', 'دمج الخلايا', 'دمج وتوسيط / دمج / فصل'), B('borderMenu', 'border', 'حدود', 'حدود الخلايا'))
   + G(B('fillMenu', 'fillc', 'تعبئة', 'تعبئة لأسفل / لليمين'), B('clearMenu', 'clear', 'مسح', 'مسح الكل / التنسيقات / المحتويات'), B('fmtMenu', 'fmt', 'تنسيق', 'ارتفاع الصف وعرض العمود والإخفاء'))
   + G(B('sortMenu', 'sort', 'ترتيب وتصفية', 'ترتيب وتصفية'), B('findDlg', 'find', 'بحث واستبدال', 'بحث واستبدال (Ctrl+F / Ctrl+H)'));
 const VIEW_EXTRA = G(B('zoomIn', 'zin', 'تكبير', 'تكبير العرض'), B('zoomOut', 'zout', 'تصغير', 'تصغير العرض'), B('zoom100', 'z100', '100%', 'حجم 100%'), B('zoomSel', 'zin', 'تكبير للتحديد', 'يملأ الشاشة بالتحديد'))
-  + G(B('toggleFbar', 'fbar', 'شريط الصيغة', 'إظهار/إخفاء شريط الصيغة'), B('showF', 'showf', 'إظهار الصيغ', 'عرض الصيغ بدل نتائجها (Ctrl+`)'));
+  + G(B('swapPanes', 'swap', 'تبديل اللوحتين', 'تبديل مكان الملفين (يمين ↔ يسار)'), B('toggleFbar', 'fbar', 'شريط الصيغة', 'إظهار/إخفاء شريط الصيغة'), B('showF', 'showf', 'إظهار الصيغ', 'عرض الصيغ بدل نتائجها (Ctrl+`)'));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const snapOf = (sh) => ({
@@ -91,9 +94,10 @@ export function install(app) {
       const p = this.pane();
       const need = () => { if (!p.sh) { this.toast('افتح ملفًا أولًا'); return false; } if (p.editing) p.commitEdit(); return true; };
       const [a, arg] = name.split(':');
-      const noNeed = ['zoomMenu'];
+      const noNeed = ['zoomMenu', 'swapPanes'];
       if (!noNeed.includes(a) && !need()) return;
       switch (a) {
+        case 'nf': return this.setStyle('nf', arg);
         case 'insRow': return this.insertLines(p, 'r');
         case 'insCol': return this.insertLines(p, 'c');
         case 'delRow': return this.deleteLines(p, 'r');
@@ -125,6 +129,7 @@ export function install(app) {
         case 'zoom100': return p.setZoom(1);
         case 'zoomSel': return this.zoomToSelection(p);
         case 'zoomMenu': return this.zoomMenu(btn);
+        case 'swapPanes': return this.swapPanes();
         case 'toggleFbar': return this.toggleFbar();
       }
     },
@@ -544,7 +549,7 @@ export function install(app) {
             const q = d.querySelector('#fd-q').value.trim().toLowerCase(), c = d.querySelector('#fd-c').value;
             const l = ALL_FNS.filter((f) => (!c || f.cat === c) && (!q || f.n.toLowerCase().includes(q) || tr(f.d).toLowerCase().includes(q) || f.d.includes(q)));
             L.innerHTML = l.map((f) => `<button class="it${sel === f.n ? ' on' : ''}" data-n="${f.n}" role="option"><span class="fnn">${f.n}</span><span class="nl">${tr(f.d)}</span></button>`).join('') || `<div class="note">${tr('لا توجد نتائج')}</div>`;
-            const f = ALL_FNS.find((x) => x.n === sel); I.innerHTML = f ? `<b dir="ltr">${f.s}</b><div>${tr(f.d)}</div>` : '';
+            const f = ALL_FNS.find((x) => x.n === sel); I.innerHTML = f ? `<b dir="ltr">${lang === 'en' ? sigEn(f.s) : f.s}</b><div>${tr(f.d)}</div>` : '';
           };
           d.querySelector('#fd-q').addEventListener('input', draw); d.querySelector('#fd-c').addEventListener('change', draw);
           L.addEventListener('click', (e) => { const b = e.target.closest('.it'); if (b) { sel = b.dataset.n; d.dataset.sel = sel; draw(); } });

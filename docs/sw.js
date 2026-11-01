@@ -1,6 +1,6 @@
 // عامل الخدمة: يعمل التطبيق دون اتصال + يستقبل الملفات المشاركة من Android
-const V = 'jadawel-v7';
-const SHELL = ['./', 'index.html', 'app.css', 'fonts/fonts.css', 'js/ui.js', 'js/calc.js', 'vendor/formula-parser.min.js', 'vendor/xlsx.full.min.js', 'js/theme.js', 'js/recents.js', 'js/fonts.js', 'js/i18n.js', 'js/fill.js', 'js/native.js', 'manifest.webmanifest', 'vendor/exceljs.min.js', 'js/app.js', 'js/tools.js', 'js/fnlib.js', 'js/pane.js', 'js/io.js', 'js/store.js', 'js/util.js', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const V = 'jadawel-v8';
+const SHELL = ['./', 'index.html', 'app.css', 'fonts/fonts.css', 'js/ui.js', 'js/calc.js', 'vendor/formula-parser.min.js', 'vendor/xlsx.full.min.js', 'js/theme.js', 'js/recents.js', 'js/fonts.js', 'js/i18n.js', 'js/fill.js', 'js/native.js', 'manifest.webmanifest', 'vendor/exceljs.min.js', 'js/app.js', 'js/tools.js', 'js/kbd.js', 'js/i18n-more.js', 'js/fnlib.js', 'js/pane.js', 'js/io.js', 'js/store.js', 'js/util.js', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== 'jadawel-share').map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

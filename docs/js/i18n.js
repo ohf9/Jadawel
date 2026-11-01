@@ -6,6 +6,7 @@ export function saveSettings(patch) { Object.assign(settings, patch); try { loca
 export let lang = settings.lang;
 export function setLang(l) { lang = l; settings.lang = l; document.documentElement.lang = l; document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr'; }
 
+import { MORE } from './i18n-more.js';
 const EN = {
   'جداول': 'Jadawel', 'الملفات المفتوحة': 'Open files', 'الإعدادات': 'Settings',
   'مصنف جديد (Ctrl+N)': 'New workbook (Ctrl+N)', 'جديد': 'New', 'فتح ملف أو أكثر (Ctrl+O)': 'Open one or more files (Ctrl+O)', 'فتح': 'Open',
@@ -63,6 +64,7 @@ const EN = {
   'اسحب للتعبئة (نقرتان للتعبئة لأسفل)': 'Drag to fill (double-click to fill down)', 'الشبكة': 'Grid', '＋ مصنف جديد': '＋ New workbook', '📂 فتح ملف': '📂 Open file', 'أو اختر ملفًا مفتوحًا من التبويبات بالأعلى': 'Or pick an open file from the tabs above',
   'ورقة جديدة': 'New sheet', '+ ورقة': '+ Sheet', 'مصنف': 'Book',
 };
+Object.assign(EN, MORE);
 const PAT = [
   [/^يوجد في «(.*)» تعديلات غير محفوظة\.$/s, (m) => `“${m[1]}” has unsaved changes.`],
   [/^(قص|نسخ) (\d+)×(\d+) — الصق في أي ملف مفتوح$/, (m) => `${m[1] === 'قص' ? 'Cut' : 'Copied'} ${m[2]}×${m[3]}. Paste into any open file.`],

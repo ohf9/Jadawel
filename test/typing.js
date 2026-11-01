@@ -1,6 +1,6 @@
 // تثبيت العرض أثناء كتابة الأرقام في شيت RTL + فتح ملف كبير
 const { chromium } = require('playwright');
-(async () => { const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1000, height: 800 }, hasTouch: true, isMobile: true });
+(async () => { const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1000, height: 800 }, hasTouch: true, isMobile: true }); await ctx.addInitScript(() => { try { const s = JSON.parse(localStorage.getItem("jadawel-settings")||"{}"); s.keypad = false; localStorage.setItem("jadawel-settings", JSON.stringify(s)); } catch(e){} });
   const p = await ctx.newPage(); let bad = 0; p.on('pageerror', (e) => { console.log('E', e.message); bad++; });
   const url = process.env.URL || 'http://localhost:8765/';
   await p.goto(url); await p.evaluate(() => indexedDB.deleteDatabase('jadawel')); await p.reload(); await p.waitForTimeout(500);

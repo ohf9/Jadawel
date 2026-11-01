@@ -1,7 +1,7 @@
 // مقابض التحديد، شريط التعبئة، وشريط الأدوات العائم (+ إيقافه من الإعدادات)
 const { chromium } = require('playwright');
 let fails = 0; const check = (c, m) => { console.log(c ? '  ✔' : '  ✘ FAIL', m); if (!c) fails++; };
-(async () => { const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1200, height: 800 }, hasTouch: true, isMobile: true });
+(async () => { const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1200, height: 800 }, hasTouch: true, isMobile: true }); await ctx.addInitScript(() => { try { const s = JSON.parse(localStorage.getItem("jadawel-settings")||"{}"); s.keypad = false; localStorage.setItem("jadawel-settings", JSON.stringify(s)); } catch(e){} });
   const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p); p.on('pageerror', (e) => { console.log('E', e.message); fails++; });
   await p.goto(process.env.URL || 'http://localhost:8765/'); await p.evaluate(() => { localStorage.clear(); indexedDB.deleteDatabase('jadawel'); }); await p.reload(); await p.waitForTimeout(500);
   await p.click('.pane[data-pane="0"] .e-new'); await p.waitForFunction(() => app.pane().sh);

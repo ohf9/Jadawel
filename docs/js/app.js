@@ -12,6 +12,7 @@ import { applyTheme } from './theme.js';
 import { fileMenu, fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
 import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { install as installTools } from './tools.js';
+import { install as installKbd, installUnsup } from './kbd.js';
 import { shareBlob, printPage, isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
 async function claimSlot() {
@@ -72,7 +73,7 @@ const app = window.app = {
     p.show(wb); this.setActive(paneIdx); this.renderTabs(); this.persistMeta();
   },
   renderTabs() {
-    this.panes.forEach((q) => { const b = q.el.querySelector('.e-pick'); if (b) b.hidden = !this.wbs.length; });
+    this.panes.forEach((q) => { const b = q.el.querySelector('.e-pick'); if (b) b.hidden = !this.wbs.length; const sm = q.el.querySelector('.e-same'); if (sm) sm.hidden = !this.wbs.length; });
     const bar = $('#tabs');
     bar.innerHTML = this.wbs.map((w) => {
       const where = this.panes.filter((p) => p.wb === w && (p.idx === 0 || this.layout !== 'single')).map((p) => p.idx + 1);
@@ -267,6 +268,20 @@ const app = window.app = {
     q.show(wb, { si: wb.sheets.length > 1 ? (si + 1) % wb.sheets.length : si, sel: { ar: 0, ac: 0, fr: 0, fc: 0 }, st: 0, sl: 0 });
     this.renderTabs(); this.persistMeta();
     this.toast(wb.sheets.length > 1 ? 'اللوحتان تعرضان ورقتين من نفس الملف، وأي تعديل يظهر في الاثنتين' : 'اللوحتان تعرضان نفس الورقة. أضف ورقة جديدة لتتحكم بورقتين');
+  },
+
+  // اللوحة الفارغة تعرض نفس ملف اللوحة الأخرى (على ورقة ثانية)
+  sameInto(idx) {
+    const src = this.panes[1 - idx].wb || this.wbs[0]; if (!src) return;
+    const si = this.panes[1 - idx].sh ? src.sheets.indexOf(this.panes[1 - idx].sh) : 0;
+    this.panes[idx].show(src, { si: src.sheets.length > 1 ? (si + 1) % src.sheets.length : si, sel: { ar: 0, ac: 0, fr: 0, fc: 0 }, st: 0, sl: 0 });
+    this.setActive(idx); this.renderTabs(); this.persistMeta();
+  },
+  swapPanes() {
+    if (this.layout === 'single') return this.toast('اختر عرض لوحتين أولًا (جنبًا إلى جنب أو فوق بعض)');
+    const [a, b] = this.panes; a.saveView(); b.saveView();
+    const wa = a.wb, wb2 = b.wb, va = wa && wa._views && wa._views[0], vb = wb2 && wb2._views && wb2._views[1];
+    b.show(wa, va); a.show(wb2, vb); this.setActive(1 - this.active); this.renderTabs(); this.persistMeta();
   },
 
   // ---------- التعبئة التلقائية ----------
@@ -553,7 +568,7 @@ const app = window.app = {
       if (handle) addRecent(handle, savedAs);
       this.markDirty(wb, false); this.refreshWb(wb);
       await this.persist(wb);
-      this.toast(`${how}: ${savedAs}`);
+      if (!this._quiet) this.toast(`${how}: ${savedAs}`);
       return true;
     } catch (e) {
       console.error(e); this.toast('فشل الحفظ — بياناتك ما زالت محفوظة تلقائيًا: ' + e.message, 7000); return false;
@@ -577,6 +592,9 @@ const app = window.app = {
 
   // ---------- الحفظ التلقائي والاستعادة ----------
   scheduleSave(wb) {
+    if (settings.autoFile && wb.dirty && wb.handle && wb.overwriteOK && !(wb.lossy && wb.lossy.length)) {
+      clearTimeout(wb._autoT); wb._autoT = setTimeout(async () => { if (!this.wbs.includes(wb) || !wb.dirty) return; this._quiet = true; try { await this.save(wb); } finally { this._quiet = false; } }, 4000);
+    }
     clearTimeout(this.saveTimers.get(wb.id));
     this.saveTimers.set(wb.id, setTimeout(() => this.persist(wb), 500));
   },
@@ -618,7 +636,8 @@ const app = window.app = {
     document.querySelectorAll('#backstage section').forEach((x) => { x.hidden = x.dataset.p !== page; });
     if (page === 'open') this.renderRecents();
     const has = !!(this.pane().wb); document.querySelectorAll('#backstage .bs-nav .needs').forEach((x) => x.classList.toggle('dis', !has));
-    const need = $('#bs-need'); if (need) need.hidden = has || !['saveas', 'print', 'share', 'export'].includes(page);
+    const need = $('#bs-need'); if (need) need.hidden = has || !['save', 'saveas', 'print', 'share', 'export'].includes(page);
+    if (page === 'save') this.renderSavePage();
     if (page === 'print') requestAnimationFrame(() => this.renderPrintPreview());
   },
   ago(t) {
@@ -666,8 +685,44 @@ const app = window.app = {
     const p = this.pane();
     if (act === 'settings') { this.hideBackstage(); this.openSettings(); return; }
     if (!p.wb) return this.toast('افتح ملفًا أولًا');
-    if (act === 'save') { this.hideBackstage(); await this.save(); }
     else if (act === 'close') { this.hideBackstage(); this.closeWb(p.wb.id); }
+  },
+  renderSavePage() {
+    const p = this.pane(), w = p.wb; if (!w) return;
+    $('#sv-name').textContent = w.name; $('#sv-place').textContent = w.handle ? this.placeOf({ handle: w.handle }) : tr('لم يُحفظ بعد على الجهاز');
+    $('#sv-auto').checked = settings.autoFile === true;
+  },
+  async renameFile() {
+    const w = this.pane().wb; if (!w) return;
+    const ext = (/\.(\w+)$/.exec(w.name) || [])[1] || 'xlsx', base = w.name.replace(/\.\w+$/, '');
+    const n = await this.prompt('إعادة تسمية الملف', base); if (n == null) return;
+    const t = n.trim().replace(/[\\/:*?"<>|]/g, ''); if (!t) return this.toast('اسم غير صالح');
+    w.name = t + '.' + ext; w.handle = null; w.overwriteOK = false; this.markDirty(w); this.refreshWb(w); this.renderTabs(); this.renderSavePage();
+    this.toast('تغيّر الاسم. عند الحفظ التالي اختر مكان الملف الجديد.', 5000);
+  },
+  async exportOds() {
+    const p = this.pane(), w = p.wb; if (!w) return this.toast('افتح ملفًا أولًا'); if (p.editing) p.commitEdit();
+    try {
+      const x = XLSX.utils.book_new();
+      for (const sh of w.sheets) {
+        const ws = {}; let mr = 0, mc = 0;
+        for (const [k, cell] of sh.cells) {
+          const [r, c] = unkey(k); let v = cell.v, o;
+          if (v instanceof Date) o = { t: 'd', v }; else if (typeof v === 'number') o = { t: 'n', v }; else if (typeof v === 'boolean') o = { t: 'b', v }; else if (v == null) { if (cell.f == null) continue; o = { t: 'z' }; } else o = { t: 's', v: String(v) };
+          if (cell.f != null) o.f = cell.f; if (cell.s && cell.s.nf && cell.s.nf !== 'General') o.z = cell.s.nf;
+          ws[a1(r, c)] = o; if (r > mr) mr = r; if (c > mc) mc = c;
+        }
+        ws['!ref'] = 'A1:' + a1(mr, mc); if (sh.merges && sh.merges.length) ws['!merges'] = sh.merges.map((m) => ({ s: { r: m.r1, c: m.c1 }, e: { r: m.r2, c: m.c2 } }));
+        XLSX.utils.book_append_sheet(x, ws, sh.name.slice(0, 31));
+      }
+      const out = XLSX.write(x, { bookType: 'ods', type: 'array' });
+      const blob = new Blob([out], { type: 'application/vnd.oasis.opendocument.spreadsheet' }), name = w.name.replace(/\.\w+$/, '') + '.ods';
+      this.hideBackstage();
+      if ('showSaveFilePicker' in window && !window.__noFS) {
+        try { const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'ODS', accept: { 'application/vnd.oasis.opendocument.spreadsheet': ['.ods'] } }] }); await this.writeHandle(h, blob); this.toast('تم التصدير: ' + h.name); }
+        catch (e) { if (e.name !== 'AbortError') throw e; }
+      } else { await this.download(blob, name); this.toast('تم التصدير: ' + name); }
+    } catch (e) { console.error(e); this.toast('تعذر التصدير: ' + e.message, 6000); }
   },
   applyGrid() { document.body.classList.toggle('nogrid', settings.grid === false); const b = $('#btn-grid'); if (b) b.classList.toggle('on', settings.grid !== false); },
   // جمع تلقائي: يجمع الأرقام المتصلة فوق الخلية (أو يسارها)، أو يضع المجاميع تحت أعمدة التحديد
@@ -913,6 +968,8 @@ const app = window.app = {
     on('#btn-grid', () => { saveSettings({ grid: settings.grid === false }); this.applyGrid(); }); on('#btn-dir', () => this.toggleDir(this.pane())); on('#btn-share', () => this.showBackstage('share'));
     this.applyGrid();
     on('#bs-share-x', () => this.share('xlsx')); on('#bs-share-c', () => this.share('csv')); on('#bs-share-p', () => this.printSheet());
+    on('#sv-now', async () => { this.hideBackstage(); await this.save(); }); on('#sv-rename', () => this.renameFile()); on('#sv-ods', () => this.exportOds()); on('#bs-exp-o', () => this.exportOds());
+    const sa = $('#sv-auto'); if (sa) sa.addEventListener('change', () => { saveSettings({ autoFile: sa.checked }); this.toast(sa.checked ? 'الحفظ التلقائي في الملف مفعّل' : 'الحفظ التلقائي في الملف متوقف'); });
     on('#bs-exp-pdf', () => this.printSheet()); ['#pr-scope', '#pr-ori', '#pr-paper', '#pr-fit', '#pr-grid'].forEach((id) => { const e = $(id); e && e.addEventListener('change', () => this.renderPrintPreview()); }); on('#pr-go', () => this.printSheet()); on('#bs-exp-x', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'xlsx'); } }); on('#bs-exp-c', () => { const p = this.pane(); if (p.wb) { this.hideBackstage(); this.saveAsFormat(p.wb, 'csv'); } });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backstage').hidden) { e.stopPropagation(); this.hideBackstage(); } }, true);
     $('#backstage').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('rec')) { e.preventDefault(); this.openRecent(+e.target.dataset.i); } });
@@ -999,3 +1056,4 @@ const app = window.app = {
 
 installTools(app);
 app.init();
+installKbd(app); installUnsup(app);

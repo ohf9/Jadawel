@@ -144,7 +144,7 @@ export function recalc(wb, seeds) {
     const keep = cell.v;
     let res;
     try { res = normalize(parser.parse(cell.f, { sheet: sh.name, row: r + 1, col: c + 1 }, true)); }
-    catch (e) { const um = /Function (\S+) is not implemented/i.exec((e && e.message) || ''); if (um) (wb._unsup || (wb._unsup = new Set())).add(um[1]); res = /not implemented/i.test((e && e.message) || '') && keep !== undefined ? keep : /not implemented/i.test((e && e.message) || '') ? '#NAME?' : '#VALUE!'; }
+    catch (e) { const um = /Function (\S+) is not implemented/i.exec((e && e.message) || ''); if (um) (wb._unsup || (wb._unsup = new Set())).add(um[1].replace(/^_xl(fn|ws)\./i, '').toUpperCase()); res = /not implemented/i.test((e && e.message) || '') && keep !== undefined ? keep : /not implemented/i.test((e && e.message) || '') ? '#NAME?' : '#VALUE!'; }
     if (res !== keep && !(typeof res === 'number' && typeof keep === 'number' && Math.abs(res - keep) < 1e-12)) { cell.v = res; changedSheets.add(sh); }
     busy.delete(mid); memo.set(mid, res);
     const out = typeof res === 'string' && res[0] === '#' && /^#[A-Z/0!?]+$/.test(res) ? new FE(res) : res;

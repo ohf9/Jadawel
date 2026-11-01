@@ -156,7 +156,7 @@
 <div id="backstage" hidden role="dialog" aria-modal="true">
   <nav class="bs-nav">
     <button class="bs-back" id="bs-close" title="رجوع"><svg viewBox="0 0 24 24"><path d="M20 12H5M11 6l-6 6 6 6"/></svg><span>رجوع</span></button>
-    <button data-p="new"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12 12v6M9 15h6"/></svg><span>جديد</span></button><button data-p="open" class="on"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>فتح</span></button><button data-act="save" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg><span>حفظ</span></button><button data-p="saveas" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v5"/><path d="M5 3v18h7"/><path d="M8 3v6h8V3"/><path d="M14 21l1-4 5-5 2 2-5 5z"/></svg><span>حفظ باسم</span></button><button data-p="print" class="needs"><svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>طباعة</span></button><button data-p="share" class="needs"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span>مشاركة</span></button><button data-p="export" class="needs"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>تصدير</span></button><button data-act="close" class="needs"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg><span>إغلاق</span></button>
+    <button data-p="new"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M12 12v6M9 15h6"/></svg><span>جديد</span></button><button data-p="open" class="on"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>فتح</span></button><button data-p="save" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg><span>حفظ</span></button><button data-p="saveas" class="needs"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v5"/><path d="M5 3v18h7"/><path d="M8 3v6h8V3"/><path d="M14 21l1-4 5-5 2 2-5 5z"/></svg><span>حفظ باسم</span></button><button data-p="print" class="needs"><svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>طباعة</span></button><button data-p="share" class="needs"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span>مشاركة</span></button><button data-p="export" class="needs"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>تصدير</span></button><button data-act="close" class="needs"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg><span>إغلاق</span></button>
     <hr>
     <button data-act="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg><span>الإعدادات</span></button>
   </nav>
@@ -174,6 +174,16 @@
       </div>
       <div class="bs-h"><h3>الأخيرة</h3><button class="mini" id="bs-clear">مسح القائمة</button></div>
       <div id="bs-list"></div>
+    </section>
+    <section data-p="save" hidden>
+      <h2>حفظ</h2>
+      <div class="sv-file"><b id="sv-name"></b><small id="sv-place"></small></div>
+      <div class="bs-cards">
+        <button class="card" id="sv-now"><i class="ci"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg></i><b>حفظ الآن</b><span>يحفظ التعديلات داخل الملف نفسه، مثل Excel.</span></button>
+        <button class="card" id="sv-rename"><i class="ci"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg></i><b>إعادة تسمية هذا الملف</b><span>يغيّر اسم الملف عند الحفظ التالي.</span></button>
+        <button class="card" id="sv-ods"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 14h6M9 18h4M14 3v5h5"/></svg></i><b>تصدير هذا الملف إلى ODS</b><span>صيغة LibreOffice (القيم والصيغ والدمج).</span></button>
+      </div>
+      <label class="chk sv-auto"><input type="checkbox" id="sv-auto"><span><b>الحفظ التلقائي في الملف</b><small>يحفظ تلقائيًا داخل الملف نفسه بعد كل تعديل (للملفات المفتوحة من الجهاز). التعديلات تُحفظ دائمًا للاستعادة حتى لو أُطفئ هذا الخيار.</small></span></label>
     </section>
     <section data-p="saveas" hidden>
       <h2>حفظ باسم</h2>
@@ -210,6 +220,7 @@
       <div class="bs-cards">
         <button class="card" id="bs-exp-pdf"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 14h6M9 18h4M14 3v5h5"/></svg></i><b>إنشاء PDF</b><span>يفتح نافذة الطباعة، اختر منها «حفظ كملف PDF».</span></button>
         <button class="card" id="bs-exp-x"><i class="ci"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg></i><b>تصدير كـ XLSX</b><span>حفظ نسخة جديدة بصيغة Excel.</span></button>
+        <button class="card" id="bs-exp-o"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 14h6M9 18h4M14 3v5h5"/></svg></i><b>تصدير كـ ODS</b><span>صيغة LibreOffice.</span></button>
         <button class="card" id="bs-exp-c"><i class="ci"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/></svg></i><b>تصدير كـ CSV</b><span>القيم فقط للورقة الحالية.</span></button>
       </div>
     </section>

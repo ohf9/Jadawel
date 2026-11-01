@@ -16,7 +16,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   check((await p.evaluate(() => document.getElementById('print-page').textContent)).includes('landscape'), 'اتجاه الصفحة يُطبّق');
   await p.evaluate(() => app.showBackstage('open')); await p.waitForTimeout(300);
   const dl = p.waitForEvent('download', { timeout: 8000 });
-  await p.click('.bs-nav [data-act="save"]');
+  await p.click('.bs-nav [data-p="save"]'); await p.click('#sv-now');
   const d = await dl.catch(() => null); check(!!d, 'حفظ: ينتج ملفًا' + (d ? ' ' + d.suggestedFilename() : ''));
   await p.waitForTimeout(500); check(await p.locator('.toast').count() > 0, 'حفظ: رسالة تأكيد');
   await p.evaluate(() => app.showBackstage('share')); await p.waitForTimeout(300);

@@ -33,7 +33,7 @@ export class Pane {
         </div>
       </div>
       <textarea class="sink" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="الشبكة"></textarea>
-      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="cta e-new">＋ مصنف جديد</button><button class="cta e-open">📂 فتح ملف</button><button class="cta e-open e-pick" hidden>🗂 اختر من الملفات المفتوحة</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
+      <div class="empty"><div class="empty-box"><p>اللوحة ${idx + 1} فارغة</p><button class="cta e-new">＋ مصنف جديد</button><button class="cta e-open">📂 فتح ملف</button><button class="cta e-open e-pick" hidden>🗂 اختر من الملفات المفتوحة</button><button class="cta e-open e-same" hidden>⧉ نفس الملف في اللوحتين (ورقتان)</button><p class="small">أو اختر ملفًا مفتوحًا من التبويبات بالأعلى</p></div></div>
       <div class="sheets"><button class="mini add-sheet" title="ورقة جديدة">＋</button><div class="sheet-tabs"></div></div>`;
     host.appendChild(el);
     const $ = (s) => el.querySelector(s);
@@ -72,9 +72,9 @@ export class Pane {
   refreshHead() {
     if (!this.wb) return;
     this.title.textContent = this.wb.name + (this.wb.dirty ? ' •' : '');
-    const un = this.wb._unsup && this.wb._unsup.size ? [...this.wb._unsup].slice(0, 4).join('، ') : '';
+    const un = this.wb._unsup && this.wb._unsup.size && !this.wb._unsupHide ? [...this.wb._unsup].slice(0, 4).join(', ') : '';
     this.warn.style.display = un ? '' : 'none';
-    if (un) { this.warn.textContent = tr('⚠ دوال غير مدعومة: ') + un; this.warn.title = tr('هذه الدوال لا يحسبها التطبيق بعد، فتبقى قيمها كما حُفظت في الملف، وExcel يعيد حسابها عند فتح الملف.'); }
+    if (un) { this.warn.textContent = 'ⓘ ' + un; this.warn.title = tr('اضغط للتفاصيل'); }
     this.title.title = tr(this.wb.dirty ? 'توجد تعديلات غير محفوظة (محفوظة تلقائيًا للاستعادة)' : 'لا توجد تعديلات غير محفوظة');
   }
   renderTabs() {
@@ -159,7 +159,7 @@ export class Pane {
       let cls = 'c mg' + (num ? ' n' : ''); if (s && s.fill && !s.color) cls += ' f';
       let st2 = `inset-inline-start:${cx[m.c1]}px;top:${ry[m.r1]}px;width:${w}px;height:${h}px;line-height:${Math.min(h - 1, 22 * z)}px;background:${s && s.fill ? s.fill : 'var(--s-bg)'};` + style(s, cls, num);
       if (h > 30 * z) st2 += `display:flex;align-items:center;`;
-      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;'; cls += ' wr'; }
+      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.25;'; cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
       html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
     }
     for (let r = r0; r <= r1; r++) {
@@ -185,6 +185,7 @@ export class Pane {
           if (s.fill && !s.color) cls += ' f';
           if (s.wrap) { st2 += 'white-space:normal;line-height:1.25;padding-top:2px;'; cls += ' wr'; }
         }
+        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) st2 += this.shrink(txt, s, w, z);
         html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
       }
     }
@@ -198,6 +199,18 @@ export class Pane {
     }
     this.cells.innerHTML = html;
     this.renderHeaders();
+  }
+  // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
+  measure(txt, s, px) {
+    const m = this._fm || (this._fm = document.createElement('canvas').getContext('2d'));
+    m.font = `${s && s.i ? 'italic ' : ''}${s && s.b ? '700 ' : ''}${px}px ${fontCss((s && s.font) || 'Calibri')}`;
+    return m.measureText(txt).width;
+  }
+  shrink(txt, s, w, z) {
+    const px = ((s && s.sz) || 11) * 4 / 3 * z, avail = w - 10 * z;
+    if (!txt || avail <= 4 || txt.length * px * 0.42 < avail) return '';
+    const tw = this.measure(txt, s, px); if (tw <= avail) return '';
+    return `font-size:${(px * Math.max(0.5, avail / tw)).toFixed(2)}px;`;
   }
   renderHeaders() {
     if (!this.block) return;
@@ -292,6 +305,7 @@ export class Pane {
     const ed = this.editor;
     const ab = this.actBox(); this.box(ed, ab.r1, ab.c1, ab.r2, ab.c2);
     const st = (cell && cell.s) || {};
+    ed.inputMode = this.app.kpActive && this.app.kpActive() && !this.app.sysKb ? 'none' : 'text';
     ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
     ed.style.fontFamily = st.font ? fontCss(st.font) : ''; ed.style.fontSize = st.sz ? `calc(${st.sz * 4 / 3}px * var(--z,1))` : '';
     ed.style.fontWeight = st.b ? '700' : ''; ed.style.fontStyle = st.i ? 'italic' : '';
@@ -320,7 +334,7 @@ export class Pane {
   }
   commitEdit(fromFormula) {
     const e = this.editing; if (!e) return false;
-    this.editing = null;
+    this.editing = null; this.app.sysKb = false;
     const text = fromFormula ? this.formula.value : this.editor.value;
     if (document.activeElement === this.editor) this.sink.focus({ preventScroll: true });
     this.editor.style.display = 'none';
@@ -334,7 +348,7 @@ export class Pane {
     return true;
   }
   cancelEdit() {
-    if (!this.editing) return; this.editing = null;
+    if (!this.editing) return; this.editing = null; this.app.sysKb = false;
     this.editor.style.display = 'none'; this.updateSel(); this.focus();
   }
   focus() { this.sink.focus({ preventScroll: true }); }
@@ -532,7 +546,7 @@ export class Pane {
         e.preventDefault(); this.commitEdit(); this.app.keyNav(this, e); this.focus();
       }
     });
-    ed.addEventListener('blur', () => { if (this.editing && !this.editing.fbar) this.commitEdit(); });
+    ed.addEventListener('blur', () => { if (this.editing && !this.editing.fbar && !this.editing.keep) this.commitEdit(); });
 
     // شريط الصيغة
     const fx = this.formula;
@@ -572,10 +586,12 @@ export class Pane {
     this.tabs.addEventListener('dblclick', (e) => { const b = e.target.closest('.stab'); if (b) this.app.renameSheet(this, +b.dataset.i); });
     this.tabs.addEventListener('contextmenu', (e) => { const b = e.target.closest('.stab'); if (b) { e.preventDefault(); this.app.sheetMenu(this, +b.dataset.i); } });
     this.el.querySelector('.add-sheet').addEventListener('click', () => this.app.addSheet(this));
+    this.warn.addEventListener('click', () => this.app.explainUnsup(this));
     this.title.addEventListener('click', () => this.app.openFileMenu(this, this.title));
     this.el.querySelector('.e-new').addEventListener('click', () => this.app.newWb(this.idx));
     this.el.querySelector('.e-open:not(.e-pick)').addEventListener('click', () => this.app.openDialog(this.idx));
     this.el.querySelector('.e-pick').addEventListener('click', (e) => { this.app.setActive(this.idx); this.app.openFileMenu(this, e.currentTarget); });
+    this.el.querySelector('.e-same').addEventListener('click', () => this.app.sameInto(this.idx));
     this.el.querySelector('.dir-btn').addEventListener('click', () => this.app.toggleDir(this));
   }
   // ---------- تغيير حجم الأعمدة والصفوف ----------
