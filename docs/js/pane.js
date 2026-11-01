@@ -212,8 +212,11 @@ export class Pane {
     const cell = this.sh.cells.get(key(s.ar, s.ac));
     this.editing = { r: s.ar, c: s.ac, mode, orig: rawText(cell) };
     const ed = this.editor;
+    ed.dir = this.sh.rtl ? 'rtl' : 'ltr'; // dir=auto كان يقلب موضع المحرر عند كتابة الأرقام فيقفز الشيت
     this.box(ed, s.ar, s.ac, s.ar, s.ac);
-    ed.style.minWidth = ed.style.width; ed.style.width = 'auto';
+    // عرض ثابت (لا يتمدد مع الكتابة) كي لا يتحرك الشيت أثناء الإدخال
+    ed.style.minWidth = ''; ed.style.overflow = 'hidden'; ed.style.boxSizing = 'border-box';
+    this.editing.w = parseFloat(ed.style.width) || 96;
     ed.value = initial != null ? initial : this.editing.orig;
     this.formula.value = ed.value;
     ed.focus({ preventScroll: true });
@@ -370,7 +373,12 @@ export class Pane {
 
     // المحرر داخل الخلية
     const ed = this.editor;
-    ed.addEventListener('input', () => { this.formula.value = ed.value; });
+    // المتصفح قد يمرّر الشيت ليُظهر المؤشر أثناء الكتابة؛ نثبّت العرض على الخلية المحررة
+    let lock = null;
+    const relock = () => { if (lock) { const sc = this.scroller; if (sc.scrollLeft !== lock.l) sc.scrollLeft = lock.l; if (sc.scrollTop !== lock.t) sc.scrollTop = lock.t; } };
+    ed.addEventListener('keydown', () => { lock = { l: this.scroller.scrollLeft, t: this.scroller.scrollTop }; setTimeout(() => { relock(); lock = null; }, 0); }, true);
+    this.scroller.addEventListener('scroll', () => { if (lock) relock(); });
+    ed.addEventListener('input', () => { this.formula.value = ed.value; relock(); });
     ed.addEventListener('keydown', (e) => {
       e.stopPropagation();
       const k = e.key;

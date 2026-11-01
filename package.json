@@ -4,7 +4,7 @@
   "description": "جداول — محرر جداول بيانات PWA",
   "scripts": {
     "serve": "python3 -m http.server 8765 --directory docs",
-    "test": "node test/fixtures.js && node test/e2e.js && node test/touch.js && node test/fsapi.js && node test/twoviews.js && node test/windows.js && node test/features.js && node test/compat.js"
+    "test": "node test/fixtures.js && node test/e2e.js && node test/touch.js && node test/fsapi.js && node test/twoviews.js && node test/windows.js && node test/features.js && node test/compat.js && node test/typing.js"
   },
   "devDependencies": {
     "exceljs": "4.4.0",

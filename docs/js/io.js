@@ -183,8 +183,8 @@ export function readSheetJS(buffer, name) {
 
 // ملاحظة للمستخدم: ما الذي سيضيع عند حفظ الملف بالمكتبة المستخدمة
 export function lossyFeatures(buffer) {
-  const u8 = new Uint8Array(buffer); let txt = '';
-  for (let i = 0; i < u8.length; i += 1 << 20) txt += String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i + (1 << 20))));
+  // latin1 يحوّل كل بايت إلى حرف دون تجاوز حد الاستدعاءات (كان الخطأ هنا مع الملفات الكبيرة)
+  const txt = new TextDecoder('latin1').decode(new Uint8Array(buffer));
   const f = [];
   if (/xl\/charts\/chart/.test(txt)) f.push('charts');
   if (/xl\/pivotTables\//.test(txt)) f.push('pivots');
