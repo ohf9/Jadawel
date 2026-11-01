@@ -451,3 +451,30 @@ input.sw:checked{background:var(--accent);border-color:var(--accent)}input.sw:ch
 .dotc{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.3)}
 .rg-note{max-width:230px;font-size:12px;color:var(--muted);line-height:1.5;padding:4px 8px}
 .rb.on{background:var(--accent2);border-color:var(--on-b,var(--accent))}
+
+/* الصور والمخططات المصغّرة */
+.pics{position:absolute;inset:0;pointer-events:none;z-index:3}
+.pic{position:absolute;pointer-events:auto;touch-action:none;outline:1px solid transparent}
+.pic.on{outline:2px solid var(--accent,#217346);cursor:move}
+.pic img{position:absolute;display:block;user-select:none;-webkit-user-drag:none;pointer-events:none}
+.picdel{position:absolute;top:-14px;inset-inline-end:-14px;width:28px;height:28px;border-radius:50%;border:0;background:#c0392b;color:#fff;font-size:15px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.spk{position:absolute;pointer-events:none;overflow:hidden}
+
+/* قائمة Open/New أجمل وأكثر ترتيبًا */
+.bs-main section{max-width:880px;margin-inline:auto}
+.bs-main h2{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.bs-cards{max-width:none;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.card{min-height:150px;padding:20px}
+.card .ci{width:52px;height:52px;border-radius:15px}.card .ci svg{width:28px;height:28px}
+.card b{font-size:17px}
+#bs-list{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:6px;overflow:hidden}
+.rec{min-height:64px;padding:10px 14px;border-radius:12px}
+.rec+.rec{border-top:1px solid var(--line);border-radius:0 0 12px 12px}
+.rec:hover{border-radius:12px}
+.rec .ic{width:42px;height:42px;border-radius:12px;background:var(--accent2);display:grid;place-items:center;font-size:0;flex:none}
+.rec .ic svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.rec .nm b{font-size:15px}.rec .nm small{font-size:12.5px}
+.bs-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:46px 20px;color:var(--muted);text-align:center}
+.bs-empty svg{width:56px;height:56px;stroke:var(--accent);fill:none;stroke-width:1.4;opacity:.55;margin-bottom:8px;stroke-linecap:round;stroke-linejoin:round}
+.bs-empty b{color:var(--text);font-size:16px}
+.bs-main h3{margin:28px 0 10px;font-size:15px;color:var(--muted);font-weight:600}

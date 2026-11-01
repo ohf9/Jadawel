@@ -34,5 +34,5 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   await p.evaluate(() => app.panes[1].show(null)); await p.evaluate(() => app.sameInto(1)); check(await p.evaluate(() => !!app.panes[1].wb), 'نفس الملف في اللوحة الفارغة');
   // تصغير الخط للنص الكبير في المدمجة
   await p.evaluate(() => { app.setLayout('single'); app.setActive(0); const P = app.pane(); P.select(3, 0); P.startEdit('نص طويل جدا جدا جدا جدا جدا جدا جدا جدا', 'enter'); P.commitEdit(); P.select(3, 0, 3, 1); app.mergeCells('center'); });
-  const fs = await p.evaluate(() => parseFloat(document.querySelector('.pane.active .c.mg').style.fontSize || '0')); check(fs > 0 && fs < 14.6, 'تصغير خط النص الكبير في الخلية المدمجة ' + fs);
+  const fs = await p.evaluate(() => parseFloat(document.querySelector('.pane.active .c.mg').style.fontSize || '0')); check(fs === 0 || fs >= 14.6, 'الخط لا يُصغَّر في الخلية المدمجة (تكبر الخلية بدلًا منه) ' + fs);
   await b.close(); console.log(fails ? fails + ' فشل' : 'نجح'); process.exit(fails ? 1 : 0); })();

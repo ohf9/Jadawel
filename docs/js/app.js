@@ -15,6 +15,7 @@ import { install as installTools } from './tools.js';
 import { installBackstageExtra, installSettingsPage } from './bsextra.js';
 import { installPivot } from './pivot.js';
 import { installReview } from './review.js';
+import { installPics } from './pics.js';
 import { installCF } from './cf.js';
 import { installFreeze } from './freeze.js';
 import { installCharts } from './chartui.js';
@@ -132,7 +133,7 @@ const app = window.app = {
     // إعادة حساب الصيغ المتأثرة (مثل Excel)
     let touched = [sh];
     try { touched = [sh, ...recalc(wb, changes.map((c) => ({ sheet: sh, r: c.r, c: c.c })))]; } catch (e) { console.error('calc', e); }
-    this.panes.forEach((p) => { if (p.sh === sh) { p.grow(mr + 50, mc + 5); } if (p.wb === wb && touched.includes(p.sh)) { p.render(true); p.updateSel(); } });
+    this.panes.forEach((p) => { if (p.sh === sh) { p.grow(mr + 50, mc + 5); } if (p.wb === wb && touched.includes(p.sh)) { p.reflow(); p.render(true); p.updateSel(); } });
     return before;
   },
   markDirty(wb, v = true) {
@@ -322,7 +323,7 @@ const app = window.app = {
     const sh = p.sh; const set = kind === 'col' ? (sh.colEdited = sh.colEdited || new Set()) : (sh.rowEdited = sh.rowEdited || new Set());
     list.forEach((i) => set.add(i));
     this.markDirty(p.wb);
-    this.panes.forEach((q) => { if (q !== p && q.sh === sh) { q.axes(); q.block = null; q.render(true); q.updateSel(); } });
+    this.panes.forEach((q) => { if (q !== p && q.sh === sh) { q.axesFull(); q.block = null; q.render(true); q.updateSel(); } });
   },
 
   // ---------- التنسيق ----------
@@ -361,7 +362,7 @@ const app = window.app = {
       const need = Math.ceil(lines * ((p.sh.cells.get(key(r, g.c1)) && p.sh.cells.get(key(r, g.c1)).s && p.sh.cells.get(key(r, g.c1)).s.sz ? p.sh.cells.get(key(r, g.c1)).s.sz : 11) * 4 / 3 * 1.25) + 6);
       if (lines > 1 && need > (p.sh.rowH[r] || 26)) { p.sh.rowH[r] = need; rows.push(r); }
     }
-    if (rows.length) { p.axes(); p.block = null; this.dimsChanged(p, 'row', rows); }
+    if (rows.length) { p.axesFull(); p.block = null; this.dimsChanged(p, 'row', rows); }
   },
   setStyle(k, v) {
     const p = this.pane(); if (k === 'sz' && p.sh && v) this.fitRows(p, p.range(), v);
@@ -371,7 +372,7 @@ const app = window.app = {
   fitRows(p, g, sz) {
     const need = Math.ceil(sz * 4 / 3 * 1.4), rows = [];
     for (let r = g.r1; r <= g.r2; r++) if (need > 26 && (p.sh.rowH[r] || 26) < need && !(p.sh.rowH[r] && p.sh.rowManual && p.sh.rowManual.has(r))) { p.sh.rowH[r] = need; rows.push(r); }
-    if (rows.length) { p.axes(); p.block = null; this.dimsChanged(p, 'row', rows); }
+    if (rows.length) { p.axesFull(); p.block = null; this.dimsChanged(p, 'row', rows); }
   },
   bumpSize(d) {
     const p = this.pane(); if (!p.sh) return; const cell = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); const cur = (cell && cell.s && cell.s.sz) || DEFAULT_SIZE;
@@ -628,7 +629,7 @@ const app = window.app = {
       if (!docs.length) return;
       // ملفات حُفظت جلستها قبل دعم الرسوم: نقرأ رسومها من الأصل مرة واحدة
       for (const d of docs) {
-        if (d.orig && !d.chartsRead) { try { const { readCharts } = await import('./charts.js'); if (!d.sheets.some((x) => x.charts && x.charts.length)) await readCharts(d.orig, d); d.chartsRead = true; if (d.sheets.some((x) => x.charts && x.charts.length) && d.lossy) d.lossy = d.lossy.filter((k) => k !== 'charts'); } catch (e) { console.warn('restore charts', e); } }
+        if (d.orig && !d.chartsRead) { try { const { readCharts } = await import('./charts.js'); if (!d.sheets.some((x) => x.charts && x.charts.length)) await readCharts(d.orig, d); if (!d.sheets.some((x) => (x.pics && x.pics.length) || x.spark)) { const { readPics } = await import('./pics.js'); await readPics(d.orig, d); } d.chartsRead = true; if (d.sheets.some((x) => x.charts && x.charts.length) && d.lossy) d.lossy = d.lossy.filter((k) => k !== 'charts'); } catch (e) { console.warn('restore charts', e); } }
       }
       for (const d of docs) { d.handle = rehydrate(d.handle); d.sheets.forEach((s) => { s.edited = s.edited || new Set(); }); this.wbs.push(d); this.undo.set(d.id, []); this.redo.set(d.id, []); }
       const m = (await store.getMeta('layout')) || {};
@@ -668,8 +669,9 @@ const app = window.app = {
     const box = $('#bs-list'); const list = await listRecents();
     this.recentList = list;
     $('#bs-clear').hidden = !list.length;
-    if (!list.length) { box.innerHTML = `<div class="bs-empty">${tr('لا توجد ملفات أخيرة بعد. الملفات التي تفتحها أو تحفظها من الجهاز تظهر هنا.')}</div>`; return; }
-    const ic = (n) => (/\.csv|\.tsv|\.txt$/i.test(n) ? '📄' : '📗');
+    const SVG = (d) => `<svg viewBox="0 0 24 24">${d}</svg>`;
+    if (!list.length) { box.innerHTML = `<div class="bs-empty">${SVG('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>')}<b>${tr('لا توجد ملفات أخيرة بعد')}</b><span>${tr('الملفات التي تفتحها أو تحفظها من الجهاز تظهر هنا.')}</span></div>`; return; }
+    const ic = (n) => (/\.csv|\.tsv|\.txt$/i.test(n) ? SVG('<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>') : SVG('<rect x="4" y="3.5" width="16" height="17" rx="2.2"/><path d="M4 9h16M4 14.5h16M10 3.5v17"/>'));
     box.innerHTML = list.map((e, i) => `<div class="rec" role="button" tabindex="0" data-i="${i}"><span class="ic">${ic(e.name)}</span><span class="nm"><b>${esc(e.name)}</b><small>${esc(this.placeOf(e))} · ${esc(this.ago(e.time))}</small></span><button class="rm" data-rm="${i}" title="${tr('إزالة من القائمة')}">✕</button></div>`).join('');
   },
   placeOf(e) {
@@ -1076,6 +1078,7 @@ installTools(app);
 installCharts(Pane, app);
 installFreeze(Pane, app);
 installReview(app, Pane);
+installPics(Pane, app);
 installCF(app);
 installPivot(app);
 app.init();

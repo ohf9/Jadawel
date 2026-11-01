@@ -1,6 +1,8 @@
 // النموذج + قراءة وكتابة XLSX/CSV
 import { tr } from './i18n.js';
 import { readCharts, injectCharts, stripDrawings } from './charts.js';
+import { readPics, injectPics } from './pics.js';
+const hasDraw = (wb) => wb.sheets.some((s) => (s.charts && s.charts.length) || (s.pics && s.pics.length));
 import { key, unkey, parseDelimited, toCSV, rawText, parseInput, uid, parseRange } from './util.js';
 
 export function newSheet(name, rtl = true) {
@@ -167,14 +169,14 @@ export async function writeXlsx(wb) {
   for (const ws of x.worksheets.slice()) if (!keep.has(ws.id)) x.removeWorksheet(ws.id);
   x.calcProperties = Object.assign({}, x.calcProperties, { fullCalcOnLoad: true });
   const out = await x.xlsx.writeBuffer();
-  try { return await injectCharts(out, wb); } catch (e) { console.error('inject charts', e); throw new Error('تعذر كتابة الرسوم البيانية في الملف: ' + e.message); }
+  try { return await injectPics(await injectCharts(out, wb), wb); } catch (e) { console.error('inject charts', e); throw new Error('تعذر كتابة الرسوم البيانية في الملف: ' + e.message); }
 }
 
 // بعد الحفظ: الملف الجديد يصبح هو الأصل، وتُمسح قائمة التعديلات
 export async function rebaseAfterSave(wb, buffer) {
   const x = new ExcelJS.Workbook();
   // الرسوم نكتبها نحن، فنمرّر للمكتبة نسخة بلا طبقة الرسم كي لا تتعثر
-  if (wb.sheets.some((s) => s.charts && s.charts.length)) buffer = await stripDrawings(buffer);
+  if (hasDraw(wb)) buffer = await stripDrawings(buffer);
   await x.xlsx.load(buffer);
   const ids = x.worksheets.map((w) => w.id);
   wb.sheets.forEach((sh, i) => { sh.origId = ids[i]; sh.edited = new Set(); sh.colEdited = new Set(); sh.rowEdited = new Set(); sh.rtlChanged = false; sh.freezeEdited = false; sh.cfEdited = false; sh.notesTouched = null; sh.protectEdited = false; sh.rewrite = false; sh.mergesEdited = false; sh.hidTouched = null; sh.hidColsTouched = null; });
@@ -238,14 +240,12 @@ export async function readXlsx(buffer, name) {
   const lossy = lossyFeatures(buffer);
   try {
     let wb;
-    try { wb = await readXlsxExcelJS(buffer, name); }
-    catch (e0) {
-      if (!lossy.includes('charts')) throw e0;
-      // ملف فيه رسوم تعثّرت المكتبة معه: نقرأ الرسوم بأنفسنا ونمرّر نسخة بلا طبقة الرسم
-      const stripped = await stripDrawings(buffer); wb = await readXlsxExcelJS(stripped, name); wb.orig = stripped;
-    }
+    // الرسوم والصور نقرؤها ونكتبها بأنفسنا؛ نمرّر للمكتبة نسخة بلا طبقة الرسم كي لا تتعثر ولا تُكرّر الصور
+    if (/xl\/drawings\/drawing/.test(new TextDecoder('latin1').decode(new Uint8Array(buffer)))) { const stripped = await stripDrawings(buffer); wb = await readXlsxExcelJS(stripped, name); wb.orig = stripped; }
+    else wb = await readXlsxExcelJS(buffer, name);
     let nch = 0;
     try { await readCharts(buffer, wb); nch = wb.sheets.reduce((a, s) => a + (s.charts ? s.charts.length : 0), 0); } catch (e) { console.warn('charts', e); }
+    try { await readPics(buffer, wb); } catch (e) { console.warn('pics', e); }
     wb.lossy = nch ? lossy.filter((k) => k !== 'charts') : lossy; return wb;
   } catch (e) {
     console.warn('ExcelJS failed, falling back to SheetJS:', e);

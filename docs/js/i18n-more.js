@@ -80,3 +80,5 @@ Object.assign(MORE, { 'رسم': 'Draw', 'مراجعة': 'Review', 'الأقلا�
  'حماية الورقة': 'Protect Sheet', 'منع تعديل الخلايا في هذه الورقة (بدون كلمة مرور)': 'Prevent editing cells on this sheet (no password)', 'نص الملاحظة': 'Note text', 'ملاحظة': 'Note',
  'مرّر على الرسم لمسحه': 'Drag over ink to erase it', 'ارسم بإصبعك أو القلم. اضغط «تحديد» للعودة.': 'Draw with your finger or pen. Press Select to go back.', 'لا يوجد رسم يدوي في هذه الورقة': 'No ink on this sheet', 'لا توجد ملاحظة في هذه الخلية': 'There is no note in this cell',
  'الورقة محمية: لا يمكن تعديل خلاياها حتى تلغي الحماية': 'Sheet protected: its cells cannot be edited until you unprotect', 'أُلغيت حماية الورقة': 'Sheet unprotected', 'الورقة محمية. ألغِ الحماية من تبويب مراجعة لتعديلها.': 'The sheet is protected. Unprotect it from the Review tab to edit.' });
+Object.assign(MORE,{'صورة':'Picture','إدراج صورة من جهازك داخل الورقة':'Insert a picture from your device','حذف الصورة':'Delete picture'});
+Object.assign(MORE,{'لا توجد ملفات أخيرة بعد':'No recent files yet','الملفات التي تفتحها أو تحفظها من الجهاز تظهر هنا.':'Files you open or save from the device show up here.'});

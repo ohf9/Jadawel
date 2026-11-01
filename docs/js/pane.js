@@ -66,7 +66,7 @@ export class Pane {
     this.sh = this.wb.sheets[si];
     this.sel = v && v.sel ? { ...v.sel } : { ar: 0, ac: 0, fr: 0, fc: 0 };
     this.scroller.dir = this.sh.rtl ? 'rtl' : 'ltr';
-    this.axes(); this.block = null;
+    this.autoH = null; this.axes(); this.block = null;
     this.scroller.scrollTop = v ? v.st || 0 : 0;
     this.setScrollX(v ? v.sl || 0 : 0);
     this.refreshHead(); this.renderTabs(); this.render(true); this.updateSel();
@@ -100,6 +100,40 @@ export class Pane {
     this.render(true); this.updateSel(); this.app.zoomChanged(this);
   }
   // ---------- المحاور والرسم ----------
+  // ارتفاع الصفوف التلقائي: الخط الكبير أو النص الملتفّ يكبّر الصف (كما في Excel) بدل تصغير الخط
+  calcAuto() {
+    const sh = this.sh, out = new Map(); if (!sh || !sh.cells.size) return out;
+    const mt = new Map(), cov = new Set();
+    for (const m of sh.merges || []) { mt.set(key(m.r1, m.c1), m); for (let r = m.r1; r <= m.r2; r++) for (let c = m.c1; c <= m.c2; c++) if (r !== m.r1 || c !== m.c1) cov.add(key(r, c)); }
+    const hr = sh.hidRows;
+    for (const [k, cell] of sh.cells) {
+      if (cov.has(k)) continue;
+      const s = cell.s; const txt = displayText(cell); if (!txt) continue;
+      const [r, c] = k.split(',').map(Number); if (hr && hr.has(r)) continue;
+      const px = ((s && s.sz) || 11) * 4 / 3, lh = px * 1.3;
+      const m = mt.get(k);
+      let w = sh.colW[c] || DEF_W, base = sh.rowH[r] || DEF_H, rEnd = r;
+      if (m) { w = 0; base = 0; for (let x = m.c1; x <= m.c2; x++) w += sh.colW[x] || DEF_W; for (let y = m.r1; y <= m.r2; y++) base += sh.rowH[y] || DEF_H; rEnd = m.r2; }
+      let need = lh + 4;
+      const avail = Math.max(8, w - 18);
+      if (!(s && s.fit) && (s && s.wrap || m) && txt.length * px * 0.3 > avail * 0.8) {
+        let n = 0; for (const para of String(txt).split('\n')) { let cur = 0, l = 1; for (const word of para.split(/\s+/)) { const ww = this.measure(word, s, px), sp = this.measure(' ', s, px); if (cur && cur + sp + ww > avail) { l++; cur = ww; } else cur += (cur ? sp : 0) + ww; if (ww > avail) l += Math.floor(ww / avail); } n += l; }
+        if (n > 1 && (s && s.wrap || this.measure(txt, s, px) > avail)) { need = n * lh + 10; if (m && !(s && s.wrap)) m.autoWrap = true; }
+      }
+      if (s && s.fit) need = Math.min(need, base);
+      if (need > base + 1) { const last = rEnd; out.set(last, Math.max(out.get(last) || 0, (sh.rowH[last] || DEF_H) + (need - base))); }
+    }
+    return out;
+  }
+  // يعيد حساب الارتفاع التلقائي بعد تغيير المحتوى أو التنسيق
+  reflow() {
+    if (!this.sh) return false;
+    const nu = this.calcAuto(), old = this.autoH || new Map(); let same = nu.size === old.size;
+    if (same) for (const [k, v] of nu) if (Math.abs((old.get(k) || 0) - v) > 0.5) { same = false; break; }
+    if (same) return false;
+    this.autoH = nu; this.axes(); this.block = null; return true;
+  }
+  axesFull() { this.autoH = null; this.axes(); }
   axes() {
     const sh = this.sh;
     const cx = this.colX = new Float64Array(sh.ncols + 1);
@@ -107,7 +141,8 @@ export class Pane {
     this.layer.style.setProperty('--z', z);
     for (let c = 0; c < sh.ncols; c++) cx[c + 1] = cx[c] + (hc && hc.has(c) ? 0 : (sh.colW[c] || DEF_W) * z);
     const ry = this.rowY = new Float64Array(sh.nrows + 1);
-    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (hr && hr.has(r) ? 0 : (sh.rowH[r] || DEF_H) * z);
+    const au = this.autoH || (this.autoH = this.calcAuto());
+    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (hr && hr.has(r) ? 0 : Math.max(sh.rowH[r] || DEF_H, au.get(r) || 0) * z);
     const W = cx[sh.ncols], H = ry[sh.nrows];
     this.canvas.style.width = (W + HDR_W) + 'px'; this.canvas.style.height = (H + HDR_H) + 'px';
     this.layer.style.width = W + 'px'; this.layer.style.height = H + 'px';
@@ -146,7 +181,9 @@ export class Pane {
       let cls = 'c mg' + (num ? ' n' : ''); if (s && s.fill && !s.color) cls += ' f';
       let st2 = `inset-inline-start:${cx[m.c1]}px;top:${ry[m.r1]}px;width:${w}px;height:${h}px;line-height:${Math.min(h - 1, 22 * z)}px;background:${s && s.fill ? s.fill : 'var(--s-bg)'};` + style(s, cls, num);
       if (h > 30 * z) st2 += `display:flex;align-items:center;`;
-      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.3;' + this.fitWrap(txt, s, w, h, z); cls += ' wr'; } else st2 += this.shrink(txt, s, w, z);
+      if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
+      else if (txt && s && s.fit) { st2 += this.shrink(txt, s, w, z); cls += ' fitchk'; }
+      else if (txt && this.measure(txt, s, ((s && s.sz) || 11) * 4 / 3 * z) > w - 10 * z) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
       html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
     }
     for (let r = r0; r <= r1; r++) {
@@ -170,10 +207,10 @@ export class Pane {
         if (s) {
           st2 += style(s, cls, num);
           if (s.fill && !s.color) cls += ' f';
-          if (s.wrap) { st2 += 'white-space:normal;line-height:1.3;padding-top:2px;' + (txt ? this.fitWrap(txt, s, w, hh, z) : ''); cls += ' wr'; }
+          if (s.wrap) { st2 += 'white-space:normal;line-height:1.3;padding-top:2px;'; cls += ' wr'; }
         }
-        let sEff = s; { const bp0 = ((s && s.sz) || 11) * 4 / 3 * z; if (!(s && s.wrap) && txt && bp0 * 1.3 > hh) { const k = hh / (bp0 * 1.3); sEff = Object.assign({}, s, { sz: ((s && s.sz) || 11) * k }); st2 += `font-size:${(bp0 * k).toFixed(2)}px;`; } }
-        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) st2 += this.shrink(txt, sEff, w, z);
+        let sEff = s;
+        if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } }
         if (fx && fx.css) st2 += fx.css;
         html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
       }
@@ -208,9 +245,22 @@ export class Pane {
     this.lines.innerHTML = lines;
     this.cells.innerHTML = this.cellHtml(r0, r1, c0, c1);
     this.renderFrozen(r0, r1, c0, c1);
+    this.fitPass(this.el); clearTimeout(this._ft); this._ft = setTimeout(() => { if (this.sh) this.fitPass(this.el); }, 400); // الخطوط تُحمَّل متأخرة فيتغير العرض
     this.renderHeaders();
     if (this.renderCharts) this.renderCharts();
     if (this.renderExtras) this.renderExtras();
+  }
+  // قياس حقيقي من المتصفح: أي نص ما زال أعرض من خليته (اختلاف الخط عن القياس التقريبي) يُصغَّر ليتسع
+  fitPass(root) {
+    const els = [...root.querySelectorAll('.fitchk')]; if (!els.length) return;
+    const jobs = [];
+    for (const el of els) {
+      const t = el.firstElementChild && el.firstElementChild.tagName === 'SPAN' ? el.firstElementChild : null;
+      const avail = el.clientWidth - 6; if (avail < 6) continue;
+      const rg = document.createRange(); rg.selectNodeContents(t || el); const need = rg.getBoundingClientRect().width; // scrollWidth لا يحسب الفائض نحو اليسار في RTL
+      if (need > avail + 1) jobs.push([el, avail / need]);
+    }
+    for (const [el, k] of jobs) { const fs = parseFloat(getComputedStyle(el).fontSize) || 14; el.style.fontSize = Math.max(5, fs * k * 0.97).toFixed(2) + 'px'; }
   }
   // يقيس عرض النص بالبكسل (لتصغير الخط تلقائيًا عندما لا تتسع الخلية كي لا يتداخل النص)
   measure(txt, s, px) {
@@ -478,15 +528,18 @@ export class Pane {
       if (t.mode === 'drag') { if (!t.dragMoved && settings.miniBar !== false) { this.app.dragEnd(true); this.app.showMini(this); } else this.app.dragEnd(!t.dragMoved); }
       else if (t.mode === 'sel' && !t.dragMoved && settings.miniBar !== false) this.app.showMini(this);
       else if (t.mode === 'none' && !t.moved) {
-        e.preventDefault();
-        if (this.editing) this.commitEdit();
         const { r, c } = t.h; const now = Date.now();
+        const third = !!(lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350 && lastTap.n === 2);
+        // الضغطة الثالثة: لا نمنع حدث click، لأن أندرويد لا يُظهر كيبورد الجهاز إلا من click حقيقي
+        if (third) { const go = () => { document.removeEventListener('click', go, true); clearTimeout(tm); if (this.app.openSysKeyboard) this.app.openSysKeyboard(this); }; const tm = setTimeout(go, 450); document.addEventListener('click', go, true); }
+        else e.preventDefault();
+        if (this.editing && !third) this.commitEdit();
         if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) {
           clearTimeout(lastTap.mt); const n = (lastTap.n || 1) + 1;
           if (n === 2) { this.select(r, c, r, c, false); this.startEdit(); const kp = this.app.kpActive && this.app.kpActive(); if (kp && this.editing) { this.editor.select(); } lastTap = { r, c, t: now, n }; }
           else { // الضغطة الثالثة: كيبورد الجهاز الكامل
             if (!this.editing) { this.select(r, c, r, c, false); this.startEdit(); }
-            if (this.app.openSysKeyboard) this.app.openSysKeyboard(this); lastTap = null;
+            lastTap = null;
           }
         }
         else {
@@ -642,7 +695,7 @@ export class Pane {
       let d = (col ? ev.clientX : ev.clientY) - x0; if (col && sh.rtl) d = -d;
       const v = Math.max(col ? 18 : 12, Math.round((start + d) / zz));
       list.forEach((i) => { map[i] = v; });
-      this.axes(); this.block = null; this.render(true); this.updateSel();
+      this.autoH = null; this.axes(); this.block = null; this.render(true); this.updateSel();
     };
     const up = () => {
       tgt.removeEventListener('pointermove', move); tgt.removeEventListener('pointerup', up); tgt.removeEventListener('pointercancel', up);
@@ -663,7 +716,7 @@ export class Pane {
       for (const [k, cell] of sh.cells) { const [r, c] = k.split(',').map(Number); if (c !== i) continue; const t = displayText(cell); if (t) { cv.font = `${cell.s && cell.s.i ? 'italic ' : ''}${cell.s && cell.s.b ? 'bold ' : ''}14px "Segoe UI", Tahoma, sans-serif`; w = Math.max(w, cv.measureText(t).width); } }
       sh.colW[i] = Math.max(40, Math.min(600, Math.ceil(w) + 16));
     }
-    this.axes(); this.block = null; this.render(true); this.updateSel();
+    this.autoH = null; this.axes(); this.block = null; this.render(true); this.updateSel();
     this.app.dimsChanged(this, kind, list);
   }
 

@@ -42,6 +42,7 @@ const ICONS = {
   clear: '<path d="M5 19l9-14 5 3-9 14H6z"/><path d="M4 21h16"/>',
   freeze: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M4 10h16M10 4v16" stroke-width="3" opacity=".35"/>',
   cf: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.6h16"/><path d="M4 4h16v5.3H4z" fill="currentColor" opacity=".3"/>',
+  pic: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>',
   pivot: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M10 4v16"/><path d="M13 13h4M13 16h4"/>',
   fit: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M7 12h10M9 10l-2 2 2 2M15 10l2 2-2 2"/>',
   note: '<path d="M5 4h14v12H10l-4 4v-4H5z"/><path d="M9 8h6M9 12h4"/>',
@@ -57,7 +58,7 @@ const G = (...b) => `<div class="rg"><div class="rg-body">${b.join('')}</div></d
 const C2 = (...rows) => `<div class="col2">${rows.map((r) => `<div class="row">${r}</div>`).join('')}</div>`;
 
 const RIBBON = {
-  insert: G(B('pivot', 'pivot', 'جدول محوري', 'تلخيص البيانات حسب حقل صفوف وأعمدة بالمجموع أو العدد أو المتوسط'))
+  insert: G(B('picture', 'pic', 'صورة', 'إدراج صورة من جهازك داخل الورقة')) + G(B('pivot', 'pivot', 'جدول محوري', 'تلخيص البيانات حسب حقل صفوف وأعمدة بالمجموع أو العدد أو المتوسط'))
     + G(B('insRow', 'insrow', 'إدراج صفوف', 'إدراج صفوف فوق التحديد (بعدد الصفوف المحددة)'), B('insCol', 'inscol', 'إدراج أعمدة', 'إدراج أعمدة قبل التحديد (بعدد الأعمدة المحددة)'), B('delRow', 'delrow', 'حذف صفوف', 'حذف الصفوف المحددة'), B('delCol', 'delcol', 'حذف أعمدة', 'حذف الأعمدة المحددة'))
     + `<div class="rg"><div class="rg-body">${CHART_TYPES.map(([t, l]) => `<button class="rb big" data-act="chart:${t}" title="${l}">${chartIcon(t)}<span>${l}</span></button>`).join('')}</div></div>`
     + G(B('newSheet', 'sheet', 'ورقة جديدة', 'إضافة ورقة عمل جديدة'))
@@ -152,6 +153,7 @@ export function install(app) {
         case 'insCol': return this.insertLines(p, 'c');
         case 'delRow': return this.deleteLines(p, 'r');
         case 'delCol': return this.deleteLines(p, 'c');
+        case 'picture': return this.insertPicture(p);
         case 'chart': return this.insertChart(p, arg);
         case 'freezeMenu': return this.menu(btn, [
           { t: 'تثبيت الألواح (فوق وقبل الخلية النشطة)', f: () => this.freezePanes(p, 'sel') }, { t: 'تثبيت الصف العلوي', f: () => this.freezePanes(p, 'row') },
@@ -241,7 +243,7 @@ export function install(app) {
     },
     afterStruct(wb, sh) {
       try { const t = recalc(wb, null); void t; } catch (e) { console.error(e); }
-      this.panes.forEach((q) => { if (q.wb === wb && q.sh === sh) { q.axes(); q.block = null; q.render(true); q.updateSel(); } else if (q.wb === wb && q.sh) { q.render(true); } });
+      this.panes.forEach((q) => { if (q.wb === wb && q.sh === sh) { q.axesFull(); q.block = null; q.render(true); q.updateSel(); } else if (q.wb === wb && q.sh) { q.render(true); } });
     },
     fullRecalc(wb) {
       const old = new Map();
@@ -407,12 +409,12 @@ export function install(app) {
       const a = axis === 'r' ? g.r1 : g.c1, b = axis === 'r' ? g.r2 : g.c2;
       for (let i = a; i <= b; i++) { (axis === 'r' ? sh.rowH : sh.colW)[i] = px; list.push(i); }
       if (axis === 'r') { sh.rowManual = sh.rowManual || new Set(); list.forEach((i) => sh.rowManual.add(i)); }
-      p.axes(); p.block = null; p.render(true); p.updateSel(); this.dimsChanged(p, axis === 'r' ? 'row' : 'col', list);
+      p.axesFull(); p.block = null; p.render(true); p.updateSel(); this.dimsChanged(p, axis === 'r' ? 'row' : 'col', list);
     },
     autoFitSel(axis) {
       const p = this.pane(); if (!p.sh) return; const g = p.range();
       if (axis === 'c') { for (let c = g.c1; c <= g.c2; c++) p.autofit('col', c); }
-      else { const sh = p.sh; const list = []; for (let r = g.r1; r <= g.r2; r++) { delete sh.rowH[r]; list.push(r); } p.axes(); p.block = null; p.render(true); p.updateSel(); this.dimsChanged(p, 'row', list); this.fitWrapRows(p, g); }
+      else { const sh = p.sh; const list = []; for (let r = g.r1; r <= g.r2; r++) { delete sh.rowH[r]; list.push(r); } p.axesFull(); p.block = null; p.render(true); p.updateSel(); this.dimsChanged(p, 'row', list); this.fitWrapRows(p, g); }
     },
     hideLines(axis, hide) {
       const p = this.pane(); if (!p.sh) return; const g = p.range(); const k = axis === 'r' ? 'hidRows' : 'hidCols';

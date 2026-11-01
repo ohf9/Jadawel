@@ -4,12 +4,12 @@ import { parseRange, key, esc, a1 } from './util.js';
 import { tr } from './i18n.js';
 
 const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
-const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
-const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-const NS_X = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
+export const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+export const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+export const NS_X = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
 const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47', '#264478', '#9E480E'];
-const EMU = 9525;
-const DEF_W = 96, DEF_H = 26;
+export const EMU = 9525;
+export const DEF_W = 96, DEF_H = 26;
 export const CHART_TYPES = [['col', 'عمودي'], ['bar', 'أشرطة'], ['line', 'خطي'], ['area', 'مساحة'], ['pie', 'دائري'], ['scatter', 'مبعثر']];
 
 let _id = 0;
@@ -57,18 +57,18 @@ export function resolveChart(wb, ch) {
 }
 
 // ---------- قراءة الرسوم من ملف XLSX ----------
-const dom = (s) => new DOMParser().parseFromString(s, 'application/xml');
-const kids = (el, name) => [...el.children].filter((x) => x.localName === name);
-const kid = (el, name) => kids(el, name)[0] || null;
-const desc = (el, name) => [...el.getElementsByTagName('*')].filter((x) => x.localName === name);
+export const dom = (s) => new DOMParser().parseFromString(s, 'application/xml');
+export const kids = (el, name) => [...el.children].filter((x) => x.localName === name);
+export const kid = (el, name) => kids(el, name)[0] || null;
+export const desc = (el, name) => [...el.getElementsByTagName('*')].filter((x) => x.localName === name);
 const val = (el) => el ? el.getAttribute('val') : null;
-function resolvePath(base, target) {
+export function resolvePath(base, target) {
   if (target.startsWith('/')) return target.slice(1);
   const parts = base.split('/'); parts.pop();
   for (const p of target.split('/')) { if (p === '..') parts.pop(); else if (p !== '.') parts.push(p); }
   return parts.join('/');
 }
-function relsOf(zip, path) {
+export function relsOf(zip, path) {
   const dir = path.slice(0, path.lastIndexOf('/') + 1), name = path.slice(path.lastIndexOf('/') + 1);
   const rp = dir + '_rels/' + name + '.rels'; const m = new Map(); const raw = zip.get(rp); if (!raw) return m;
   for (const r of desc(dom(txt(raw)), 'Relationship')) m.set(r.getAttribute('Id'), { type: r.getAttribute('Type'), target: resolvePath(path, r.getAttribute('Target')) });
@@ -387,7 +387,7 @@ export async function stripDrawings(buffer) {
   const zip = await readZip(buffer);
   for (const [k, v] of [...zip]) {
     if (/^xl\/worksheets\/sheet[^/]*\.xml$/.test(k)) zip.set(k, bytes(txt(v).replace(/<drawing\b[^>]*\/>/g, '')));
-    else if (/^xl\/(drawings|charts)\//.test(k)) zip.delete(k);
+    else if (/^xl\/(drawings|charts|media)\//.test(k)) zip.delete(k);
     else if (/^xl\/worksheets\/_rels\/.*\.rels$/.test(k)) zip.set(k, bytes(txt(v).replace(/<Relationship\b[^>]*relationships\/drawing"[^>]*\/>/g, '').replace(/<Relationship\b[^>]*Type="[^"]*\/drawing"[^>]*\/>/g, '')));
   }
   return await writeZip(zip);
