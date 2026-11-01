@@ -48,7 +48,7 @@ const bytes = fs.readFileSync('test/corpus/exceljs.xlsx').toString('base64');
  await q.keyboard.press('Control+b');
  check(await q.evaluate(()=>[0,1,2,3,4].every(r=>app.pane().sh.cells.get(r+',0').s.b===1)),'Ctrl+B يجعل النطاق غامقًا');
  await q.click('#fm-ac'); check(await q.evaluate(()=>app.pane().sh.cells.get('2,0').s.al==='center'),'زر التوسيط');
- await q.selectOption('#fm-nf','0.00%'); await q.evaluate(()=>{const P=app.pane(); P.select(10,0); P.startEdit('0.256','enter'); P.commitEdit();});
+ await q.click('#fm-nf'); await q.click('.menu-nf .it[data-v="0.00%"]'); await q.evaluate(()=>{const P=app.pane(); P.select(10,0); P.startEdit('0.256','enter'); P.commitEdit();});
  await q.evaluate(()=>{const P=app.pane(); P.select(10,0); app.setNumFmt('0.00%');});
  check(await q.evaluate(()=>app.pane().cells.textContent.includes('25.60%')),'تنسيق النسبة المئوية يظهر 25.60%');
  // تغيير حجم عمود بالسحب

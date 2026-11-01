@@ -1,5 +1,6 @@
 // لوحة عرض ملف واحد: شبكة خلايا افتراضية + شريط صيغ + تبويبات الأوراق
-import { tr } from './i18n.js';
+import { fontCss } from './fonts.js';
+import { tr, settings } from './i18n.js';
 import { key, a1, colName, rawText, displayText, isNumCell, parseInput, parseRange, esc } from './util.js';
 
 export const HDR_W = 46, HDR_H = 24, DEF_W = 96, DEF_H = 26;
@@ -27,7 +28,7 @@ export class Pane {
           <div class="colhdr"><div class="corner" title="تحديد الكل"></div><div class="colcells"></div></div>
           <div class="rowhdr"></div>
           <div class="layer"><div class="lines"></div><div class="cells"></div>
-            <div class="sel"></div><div class="act"></div><div class="marq"></div><div class="drop"></div><div class="fillbox"></div><div class="fillh" title="اسحب للتعبئة (نقرتان للتعبئة لأسفل)"></div>
+            <div class="sel"></div><div class="act"></div><div class="marq"></div><div class="drop"></div><div class="fillbox"></div><div class="fillh" title="اسحب للتعبئة (نقرتان للتعبئة لأسفل)"></div><div class="hnd tl" title="مدّ التحديد"></div><div class="hnd br" title="مدّ التحديد"></div>
             <input class="editor" spellcheck="false" dir="auto"></div>
         </div>
       </div>
@@ -38,7 +39,8 @@ export class Pane {
     const $ = (s) => el.querySelector(s);
     Object.assign(this, { title: $('.pane-title'), namebox: $('.namebox'), formula: $('.formula'), scroller: $('.scroller'), canvas: $('.canvas'),
       colcells: $('.colcells'), rowhdr: $('.rowhdr'), layer: $('.layer'), lines: $('.lines'), cells: $('.cells'), selEl: $('.sel'), actEl: $('.act'),
-      marqEl: $('.marq'), dropEl: $('.drop'), editor: $('.editor'), tabs: $('.sheet-tabs'), corner: $('.corner'), sink: $('.sink'), warn: $('.warn'), fillh: $('.fillh'), fillbox: $('.fillbox') });
+      marqEl: $('.marq'), dropEl: $('.drop'), editor: $('.editor'), tabs: $('.sheet-tabs'), corner: $('.corner'), sink: $('.sink'), warn: $('.warn'), fillh: $('.fillh'), fillbox: $('.fillbox'), hTL: $('.hnd.tl'), hBR: $('.hnd.br') });
+    this.touchMode = matchMedia('(pointer:coarse)').matches;
     this.bind();
   }
 
@@ -135,7 +137,8 @@ export class Pane {
         if (cell.f != null && cell.v === undefined) cls += ' pending';
         if (s) {
           if (s.b) st2 += 'font-weight:700;'; if (s.i) st2 += 'font-style:italic;'; if (s.u) st2 += 'text-decoration:underline;';
-          if (s.color) st2 += `color:${s.color};`; if (s.fill) st2 += `background:${s.fill};`;
+          if (s.color) st2 += `color:${s.color};`; if (s.fill) { st2 += `background:${s.fill};`; if (!s.color) cls += ' f'; }
+          if (s.font) st2 += `font-family:${fontCss(s.font)};`; if (s.sz) st2 += `font-size:${s.sz * 4 / 3}px;`;
           if (s.al) st2 += `text-align:${s.al};`;
         }
         html += `<div class="${cls}" style="${st2}">${esc(txt)}</div>`;
@@ -174,13 +177,22 @@ export class Pane {
     this.box(this.selEl, g.r1, g.c1, g.r2, g.c2);
     this.selEl.classList.toggle('multi', g.r1 !== g.r2 || g.c1 !== g.c2);
     this.box(this.actEl, s.ar, s.ac, s.ar, s.ac);
-    this.fillh.style.cssText = this.editing ? 'display:none' : `display:block;inset-inline-start:${this.colX[g.c2 + 1] - 5}px;top:${this.rowY[g.r2 + 1] - 5}px`;
+    const cx = this.colX, ry = this.rowY, th = this.handlesOn() && !this.editing;
+    if (this.editing) this.fillh.style.cssText = 'display:none';
+    else if (th) this.fillh.style.cssText = `display:block;inset-inline-start:${(cx[g.c1] + cx[g.c2 + 1]) / 2}px;top:${ry[g.r2 + 1]}px`;
+    else this.fillh.style.cssText = `display:block;inset-inline-start:${cx[g.c2 + 1] - 5}px;top:${ry[g.r2 + 1] - 5}px`;
+    this.fillh.classList.toggle('bar', th);
+    this.hTL.style.cssText = th ? `display:block;inset-inline-start:${cx[g.c1]}px;top:${ry[g.r1]}px` : 'display:none';
+    this.hBR.style.cssText = th ? `display:block;inset-inline-start:${cx[g.c2 + 1]}px;top:${ry[g.r2 + 1]}px` : 'display:none';
     this.namebox.value = g.r1 === g.r2 && g.c1 === g.c2 ? a1(s.ar, s.ac) : a1(g.r1, g.c1) + ':' + a1(g.r2, g.c2);
     if (!this.editing) this.formula.value = rawText(this.sh.cells.get(key(s.ar, s.ac)));
     this.renderHeaders();
     this.showMarquee();
     this.app.onSelection(this);
   }
+  handlesOn() { return this.touchMode && settings.handles !== false; }
+  applyPrefs() { this.updateSel(); }
+  setTouchMode(b) { if (this.touchMode !== b) { this.touchMode = b; if (this.sh) this.updateSel(); } }
   showMarquee() {
     const cl = this.app.clip;
     if (cl && cl.cut && cl.wbId === this.wb.id && cl.sheetId === this.sh.id) this.box(this.marqEl, cl.r1, cl.c1, cl.r2, cl.c2);
@@ -269,6 +281,8 @@ export class Pane {
     // الماوس والقلم
     let drag = null;
     this.layer.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') this.setTouchMode(e.pointerType === 'pen' ? this.touchMode : false);
+      this.app.hideMini();
       if (e.pointerType === 'touch' || e.button > 0 || e.target === this.editor) return;
       if (this.editing) this.commitEdit();
       e.preventDefault(); this.focus();
@@ -296,6 +310,7 @@ export class Pane {
     // اللمس: نقرة = تحديد، نقرتان = تحرير، ضغطة مطوّلة ثم سحب = تحديد نطاق، ضغطة مطوّلة على نطاق محدد ثم سحب = نقل نسخة إلى الملف الآخر
     let t = null, lastTap = null;
     this.layer.addEventListener('touchstart', (e) => {
+      this.setTouchMode(true); this.app.hideMini();
       if (e.touches.length !== 1 || e.target === this.editor) { t = null; return; }
       const p = e.touches[0]; const h = this.hit(p.clientX, p.clientY);
       t = { x: p.clientX, y: p.clientY, h, mode: 'none', moved: false };
@@ -309,6 +324,7 @@ export class Pane {
     }, { passive: true });
     this.layer.addEventListener('touchmove', (e) => {
       if (!t) return; const p = e.touches[0];
+      if (t.mode !== 'none' && Math.hypot(p.clientX - t.x, p.clientY - t.y) > 10) t.dragMoved = true;
       if (t.mode === 'none') { if (Math.hypot(p.clientX - t.x, p.clientY - t.y) > 10) { t.moved = true; clearTimeout(t.timer); } return; }
       e.preventDefault();
       if (t.mode === 'sel') { const h = this.hit(p.clientX, p.clientY); this.autoScroll(p); this.select(this.sel.ar, this.sel.ac, h.r, h.c, false); }
@@ -316,13 +332,20 @@ export class Pane {
     }, { passive: false });
     this.layer.addEventListener('touchend', (e) => {
       if (!t) return; clearTimeout(t.timer);
-      if (t.mode === 'drag') this.app.dragEnd(false);
+      if (t.mode === 'drag') { if (!t.dragMoved && settings.miniBar !== false) { this.app.dragEnd(true); this.app.showMini(this); } else this.app.dragEnd(!t.dragMoved); }
+      else if (t.mode === 'sel' && !t.dragMoved && settings.miniBar !== false) this.app.showMini(this);
       else if (t.mode === 'none' && !t.moved) {
         e.preventDefault();
         if (this.editing) this.commitEdit();
         const { r, c } = t.h; const now = Date.now();
-        if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) { this.select(r, c, r, c, false); this.startEdit(); lastTap = null; }
-        else { this.select(r, c, r, c, false); lastTap = { r, c, t: now }; this.focus(); }
+        if (lastTap && lastTap.r === r && lastTap.c === c && now - lastTap.t < 350) { clearTimeout(lastTap.mt); this.select(r, c, r, c, false); this.startEdit(); lastTap = null; }
+        else {
+          const was = this.inSel(r, c) || (this.sel.ar === r && this.sel.ac === c && this.sel.fr === r && this.sel.fc === c);
+          if (!was) this.select(r, c, r, c, false);
+          lastTap = { r, c, t: now }; this.focus();
+          // لمسة على خلية محددة أصلًا تُظهر شريط الأدوات العائم (إن لم تأتِ لمسة ثانية)
+          if (was && settings.miniBar !== false) lastTap.mt = setTimeout(() => { if (lastTap && !this.editing) this.app.showMini(this); }, 330);
+        }
       }
       t = null;
     });
@@ -360,6 +383,24 @@ export class Pane {
     hover(this.colcells, 'col'); hover(this.rowhdr, 'row');
     this.colcells.addEventListener('dblclick', (e) => { const c = edge(e, 'col'); if (c != null) this.autofit('col', c); });
     this.rowhdr.addEventListener('dblclick', (e) => { const r = edge(e, 'row'); if (r != null) this.autofit('row', r); });
+
+    // مقابض التحديد (دوائر الزوايا): تمدّ النطاق مع بقاء الزاوية المقابلة ثابتة
+    const bindHandle = (el, which) => {
+      el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation(); this.focus(); this.app.hideMini(); el.setPointerCapture(e.pointerId);
+        const g = this.range(), anc = which === 'br' ? { r: g.r1, c: g.c1 } : { r: g.r2, c: g.c2 };
+        const hr = el.getBoundingClientRect(), sr = this.selEl.getBoundingClientRect();
+        const ox = hr.left + hr.width / 2 - e.clientX, oy = hr.top + hr.height / 2 - e.clientY;
+        const ix = Math.sign(sr.left + sr.width / 2 - (hr.left + hr.width / 2)) * 4 || 4, iy = Math.sign(sr.top + sr.height / 2 - (hr.top + hr.height / 2)) * 4 || 4;
+        const mv = (ev) => { this.autoScroll(ev); const h = this.hit(ev.clientX + ox + ix, ev.clientY + oy + iy, true); this.select(anc.r, anc.c, h.r, h.c, false); };
+        const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+        el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+      });
+    };
+    bindHandle(this.hTL, 'tl'); bindHandle(this.hBR, 'br');
+    this.layer.addEventListener('contextmenu', (e) => { if (!this.sh) return; e.preventDefault(); const h = this.hit(e.clientX, e.clientY); if (h && !this.inSel(h.r, h.c)) this.select(h.r, h.c, h.r, h.c, false); this.app.showMini(this, { x: e.clientX, y: e.clientY }); });
+    sc.addEventListener('scroll', () => this.app.hideMini(), { passive: true });
 
     // مقبض التعبئة
     const fh = this.fillh;

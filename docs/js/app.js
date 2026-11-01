@@ -5,6 +5,9 @@ import { newWorkbook, newSheet, readXlsx, readSheetJS, readCsv, writeXlsx, write
 import * as store from './store.js';
 import { computeFill } from './fill.js';
 import { settings, saveSettings, tr, lang, setLang, translateDom } from './i18n.js';
+import { applyTheme } from './theme.js';
+import { fontMenu, sizeMenu, colorMenu, nfMenu, pushRecent, closePopover } from './ui.js';
+import { DEFAULT_FONT, DEFAULT_SIZE } from './fonts.js';
 import { isNative, takeIntentFiles, rehydrate, b64ToBytes } from './native.js';
 
 async function claimSlot() {
@@ -22,7 +25,7 @@ const FS = 'showOpenFilePicker' in window && !window.__noFS;
 const $ = (s) => document.querySelector(s);
 
 const app = window.app = {
-  wbs: [], panes: [], active: 0, layout: 'single', clip: null, undo: new Map(), redo: new Map(), saveTimers: new Map(),
+  lastColor: (() => { try { return Object.assign({ color: '#c00000', fill: '#ffe699' }, JSON.parse(localStorage.getItem('jadawel-lastcolor'))); } catch (e) { return { color: '#c00000', fill: '#ffe699' }; } })(), wbs: [], panes: [], active: 0, layout: 'single', clip: null, undo: new Map(), redo: new Map(), saveTimers: new Map(),
 
   init() {
     const ws = $('#workspace');
@@ -133,6 +136,7 @@ const app = window.app = {
     if (p.sh !== sh) p.setSheet(p.wb.sheets.indexOf(sh));
     const rs = list.map((x) => x.r), cs = list.map((x) => x.c);
     p.select(Math.min(...rs), Math.min(...cs), Math.max(...rs), Math.max(...cs));
+    this.flash(p);
   },
 
   // ---------- الحافظة ----------
@@ -187,9 +191,10 @@ const app = window.app = {
       if (cell && (cell.v != null || cell.f != null)) {
         nc = cell.f != null ? { f: shiftFormula(cell.f, dr, dc), v: undefined } : { v: cell.v };
         if (cell.f != null && !dr && !dc && p.sh === srcSh) nc.v = cell.v;
-        if (cell.s && cell.s.nf) nc.s = { ...(old && old.s), nf: cell.s.nf };
-        else if (old && old.s) nc.s = old.s;
-      } else if (old && old.s) nc = { v: null, s: old.s };
+        // كما في Excel: النسخ الداخلي ينقل التنسيق كاملًا، ولصق النص الخارجي يُبقي تنسيق الخلية
+        if (src) { if (cell.s) nc.s = { ...cell.s }; } else if (old && old.s) nc.s = old.s;
+      } else if (src && cell && cell.s) nc = { v: null, s: { ...cell.s } };
+      else if (old && old.s) nc = { v: null, s: old.s };
       changes.push({ r, c, cell: nc });
     }));
     // نزيل التكرار (القص فوق المصدر نفسه): آخر قيمة تفوز
@@ -197,13 +202,13 @@ const app = window.app = {
     this.applyChanges(p.wb, p.sh, [...m.values()]);
     if (src && src.cut) { this.clip = null; this.panes.forEach((q) => q.wb && q.showMarquee()); }
     p.select(r0, c0, r0 + grid.length - 1, c0 + grid[0].length - 1);
-    p.focus();
+    p.focus(); this.flash(p);
   },
   findSheet(wbId, sheetId) { const w = this.wbs.find((x) => x.id === wbId); return w && w.sheets.find((s) => s.id === sheetId); },
   clearRange(p) {
     const g = p.range(), ch = [];
     for (const [k, old] of p.sh.cells) { const [r, c] = unkey(k); if (r >= g.r1 && r <= g.r2 && c >= g.c1 && c <= g.c2 && (old.v != null || old.f != null)) ch.push({ r, c, cell: old.s ? { v: null, s: old.s } : null }); }
-    if (ch.length) this.applyChanges(p.wb, p.sh, ch);
+    if (ch.length) { this.applyChanges(p.wb, p.sh, ch); this.flash(p, g); }
   },
 
   // ---------- السحب بين الملفين (ماوس / قلم / لمس) ----------
@@ -260,6 +265,7 @@ const app = window.app = {
     if (!ch.length) return;
     this.applyChanges(p.wb, p.sh, ch);
     p.select(Math.min(src.r1, target.r1), Math.min(src.c1, target.c1), Math.max(src.r2, target.r2), Math.max(src.c2, target.c2));
+    this.flash(p, target);
   },
   fillDownToData(p) {
     const src = p.range(); const has = (r, c) => c >= 0 && p.sh.cells.has(key(r, c));
@@ -293,14 +299,43 @@ const app = window.app = {
       const cell = { ...(old || { v: null }) }; if (Object.keys(st).length) cell.s = st; else delete cell.s;
       ch.push({ r, c, cell: cell.v == null && cell.f == null && !cell.s ? null : cell });
     }
-    this.applyChanges(p.wb, p.sh, ch); p.focus();
+    this.applyChanges(p.wb, p.sh, ch); p.focus(); this.flash(p, g);
   },
   toggleStyle(k) {
     const p = this.pane(); if (!p.sh) return; const g = p.range(); let all = true;
     for (let r = g.r1; r <= g.r2 && all; r++) for (let c = g.c1; c <= g.c2; c++) { const cell = p.sh.cells.get(key(r, c)); if (!(cell && cell.s && cell.s[k])) { all = false; break; } }
     this.formatSel(p, (st) => { if (all) delete st[k]; else st[k] = 1; });
   },
-  setStyle(k, v) { this.formatSel(null, (st) => { if (v == null && k !== 'fill' && k !== 'color') delete st[k]; else st[k] = v; }); },
+  setStyle(k, v) {
+    const p = this.pane(); if (k === 'sz' && p.sh && v) this.fitRows(p, p.range(), v);
+    this.formatSel(null, (st) => { if (v == null && k !== 'fill' && k !== 'color') delete st[k]; else st[k] = v; });
+  },
+  // كما في Excel: تكبير الخط يكبّر الصف تلقائيًا إن لم يُضبط ارتفاعه يدويًا
+  fitRows(p, g, sz) {
+    const need = Math.ceil(sz * 4 / 3 * 1.4), rows = [];
+    for (let r = g.r1; r <= g.r2; r++) if (need > 26 && (p.sh.rowH[r] || 26) < need && !(p.sh.rowH[r] && p.sh.rowManual && p.sh.rowManual.has(r))) { p.sh.rowH[r] = need; rows.push(r); }
+    if (rows.length) { p.axes(); p.block = null; this.dimsChanged(p, 'row', rows); }
+  },
+  bumpSize(d) {
+    const p = this.pane(); if (!p.sh) return; const cell = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); const cur = (cell && cell.s && cell.s.sz) || DEFAULT_SIZE;
+    const L = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72]; let n;
+    if (d > 0) n = L.find((x) => x > cur) || 72; else n = [...L].reverse().find((x) => x < cur) || 8;
+    this.setStyle('sz', n);
+  },
+  openFontMenu() { const p = this.pane(); if (!p.sh) return; const c = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); fontMenu($('#fm-font'), c && c.s && c.s.font, (v) => { this.setStyle('font', v); }); },
+  openSizeMenu() { const p = this.pane(); if (!p.sh) return; const c = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); sizeMenu($('#fm-size'), c && c.s && c.s.sz, (v) => this.setStyle('sz', v)); },
+  openColorMenu(kind) {
+    const p = this.pane(); if (!p.sh) return; const c = p.sh.cells.get(key(p.sel.ar, p.sel.ac));
+    colorMenu($(kind === 'fill' ? '#fm-fill-dd' : '#fm-color-dd'), kind, c && c.s && c.s[kind === 'fill' ? 'fill' : 'color'], (v) => this.pickColor(kind, v));
+  },
+  pickColor(kind, v) {
+    if (v) { pushRecent(kind, v); this.lastColor[kind] = v; try { localStorage.setItem('jadawel-lastcolor', JSON.stringify(this.lastColor)); } catch (e) { /* لا بأس */ } }
+    this.setStyle(kind === 'fill' ? 'fill' : 'color', v); this.syncToolbar();
+  },
+  openNfMenu() {
+    const p = this.pane(); if (!p.sh) return; const c = p.sh.cells.get(key(p.sel.ar, p.sel.ac));
+    nfMenu($('#fm-nf'), NF_PRESETS, (c && c.s && c.s.nf) || 'General', (v) => this.setNumFmt(v));
+  },
   setNumFmt(nf) { this.formatSel(null, (st) => { if (nf === 'General') st.nf = 'General'; else st.nf = nf; }); },
   decimals(delta) {
     const p = this.pane(); if (!p.sh) return; const a = p.sh.cells.get(key(p.sel.ar, p.sel.ac)); let nf = a && a.s && a.s.nf; if (!nf || nf === 'General') nf = '0';
@@ -314,8 +349,9 @@ const app = window.app = {
     const cell = p.sh && p.sh.cells.get(key(p.sel.ar, p.sel.ac)); const st = (cell && cell.s) || {};
     [['#fm-b', 'b'], ['#fm-i', 'i'], ['#fm-u', 'u']].forEach(([id, k]) => q(id).classList.toggle('on', !!st[k]));
     [['left', '#fm-al'], ['center', '#fm-ac'], ['right', '#fm-ar']].forEach(([k, id]) => q(id).classList.toggle('on', st.al === k));
-    q('#fm-nf').value = NF_PRESETS.some((x) => x[0] === st.nf) ? st.nf : (st.nf ? '__custom' : 'General');
-    q('#fm-color-bar').style.background = st.color || '#000000'; q('#fm-fill-bar').style.background = st.fill || 'transparent';
+    const pr = NF_PRESETS.find((x) => x[0] === (st.nf || 'General')); q('#fm-nf span').textContent = tr(pr ? pr[1] : 'مخصص');
+    q('#fm-font span').textContent = st.font || DEFAULT_FONT; q('#fm-size span').textContent = st.sz || DEFAULT_SIZE;
+    q('#fm-color-bar').style.background = st.color || this.lastColor.color; q('#fm-fill-bar').style.background = st.fill || this.lastColor.fill;
   },
 
   // ---------- الأوراق ----------
@@ -537,25 +573,68 @@ const app = window.app = {
     } catch (e) { console.error(e); this.toast('تعذرت استعادة الجلسة السابقة: ' + e.message); }
   },
 
+  // ---------- شريط الأدوات العائم ----------
+  showMini(p, at) {
+    const mb = $('#minibar'); if (!p.sh || p.editing) return;
+    if (!at && settings.miniBar === false) return;
+    this.mini = p; const g = p.range(), multiR = g.r2 > g.r1, multiC = g.c2 > g.c1;
+    mb.querySelector('[data-a="fill"]').hidden = !(multiR || multiC);
+    mb.hidden = false; mb.classList.remove('in'); translateDom(mb);
+    const w = mb.offsetWidth, hgt = mb.offsetHeight, vw = innerWidth, vh = innerHeight;
+    let x, y;
+    if (at) { x = at.x; y = at.y + 8; }
+    else { const r = p.selEl.getBoundingClientRect(), sr = p.scroller.getBoundingClientRect(); x = (Math.max(r.left, sr.left) + Math.min(r.right, sr.right)) / 2 - w / 2; y = Math.max(r.top, sr.top + 24) - hgt - 10; if (y < sr.top + 4) y = Math.min(r.bottom, sr.bottom) + 14; }
+    x = Math.max(6, Math.min(vw - w - 6, at ? x - w / 2 : x)); y = Math.max(6, Math.min(vh - hgt - 6, y));
+    mb.style.left = x + 'px'; mb.style.top = y + 'px';
+    requestAnimationFrame(() => mb.classList.add('in'));
+  },
+  hideMini() { const mb = $('#minibar'); if (mb.hidden) return; mb.classList.remove('in'); mb.hidden = true; },
+  miniAction(a) {
+    const p = this.mini || this.pane(); this.hideMini(); if (!p || !p.sh) return;
+    if (a === 'cut') this.copy(true); else if (a === 'copy') this.copy(false);
+    else if (a === 'paste') this.pasteFromButton();
+    else if (a === 'clear') { this.clearRange(p); }
+    else if (a === 'fill') { const g = p.range(); this.fillEdge(g.r2 > g.r1 ? 'down' : 'right'); }
+    else if (a === 'edit') { p.focus(); p.startEdit(); }
+    if (a !== 'edit') p.focus();
+  },
+  // وميض قصير على النطاق المتأثر ليرى المستخدم أثر الأمر
+  flash(p, g) {
+    p = p || this.pane(); if (!p.sh) return; g = g || p.range();
+    const d = document.createElement('div'); d.className = 'flash'; p.box(d, g.r1, g.c1, g.r2, g.c2); d.style.display = 'block'; p.layer.appendChild(d); setTimeout(() => d.remove(), 650);
+  },
+
   // ---------- شريط الحالة ----------
   onSelection(p) { if (p === this.pane()) { this.updateStatus(); this.syncToolbar(); } },
   openSettings() {
     $('#set-lang').value = settings.lang; $('#set-dir').value = settings.newRtl ? 'rtl' : 'ltr';
+    this._prev = { theme: settings.theme, darkSheet: settings.darkSheet };
+    this._tmp = { theme: settings.theme || 'system', darkSheet: settings.darkSheet !== false };
+    $('#set-handles').checked = settings.handles !== false; $('#set-minibar').checked = settings.miniBar !== false;
+    this.syncSettingsUI();
     $('#settings').showModal();
   },
+  syncSettingsUI() {
+    document.querySelectorAll('#set-theme button').forEach((b) => b.classList.toggle('on', b.dataset.v === this._tmp.theme));
+    document.querySelectorAll('#set-sheet button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '1') === this._tmp.darkSheet));
+    const dark = this._tmp.theme === 'dark' || (this._tmp.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    $('#set-sheet-wrap').hidden = !dark;
+  },
+  previewTheme() { Object.assign(settings, this._tmp); applyTheme(); this.syncSettingsUI(); },
   async saveSettings() {
     const nl = $('#set-lang').value; const changed = nl !== settings.lang;
-    saveSettings({ lang: nl, newRtl: $('#set-dir').value === 'rtl' });
-    $('#settings').close();
+    saveSettings({ lang: nl, newRtl: $('#set-dir').value === 'rtl', theme: this._tmp.theme, darkSheet: this._tmp.darkSheet, handles: $('#set-handles').checked, miniBar: $('#set-minibar').checked });
+    this._prev = null; $('#settings').close();
+    applyTheme(); this.panes.forEach((q) => q.applyPrefs && q.applyPrefs());
     if (changed) this.applyLang(nl);
     this.toast('تم حفظ الإعدادات');
   },
+  cancelSettings() { if (this._prev) { Object.assign(settings, this._prev); applyTheme(); this._prev = null; } $('#settings').close(); },
   // تبديل اللغة فورًا دون إعادة تحميل
   applyLang(nl) {
     setLang(nl);
     translateDom(document.body);
     this.panes.forEach((q) => { translateDom(q.el); if (q.sh) { q.refreshHead(); q.renderTabs(); } });
-    $('#fm-nf').innerHTML = NF_PRESETS.map(([v, l]) => `<option value="${esc(v)}">${tr(l)}</option>`).join('') + `<option value="__custom" hidden>${tr('مخصص')}</option>`;
     this.renderTabs(); this.updateStatus(); this.syncToolbar();
     this.panes.forEach((q) => { if (q.sh) { q.render(true); q.updateSel(); } else q.show(q.wb || null); });
   },
@@ -627,14 +706,19 @@ const app = window.app = {
     on('#fm-b', () => this.toggleStyle('b')); on('#fm-i', () => this.toggleStyle('i')); on('#fm-u', () => this.toggleStyle('u'));
     on('#fm-al', () => this.setStyle('al', 'left')); on('#fm-ac', () => this.setStyle('al', 'center')); on('#fm-ar', () => this.setStyle('al', 'right'));
     on('#fm-decp', () => this.decimals(1)); on('#fm-decm', () => this.decimals(-1));
-    $('#fm-nf').innerHTML = NF_PRESETS.map(([v, l]) => `<option value="${esc(v)}">${tr(l)}</option>`).join('') + `<option value="__custom" hidden>${tr('مخصص')}</option>`;
-    $('#fm-nf').addEventListener('change', (e) => { if (e.target.value !== '__custom') this.setNumFmt(e.target.value); this.pane().focus(); });
-    $('#fm-color').addEventListener('input', (e) => this.setStyle('color', e.target.value));
-    $('#fm-fill').addEventListener('input', (e) => this.setStyle('fill', e.target.value));
-    on('#fm-nofill', () => this.setStyle('fill', null));
+    on('#fm-nf', () => this.openNfMenu()); on('#fm-font', () => this.openFontMenu()); on('#fm-size', () => this.openSizeMenu());
+    on('#fm-szup', () => this.bumpSize(1)); on('#fm-szdn', () => this.bumpSize(-1));
+    on('#fm-color', () => this.pickColor('color', this.lastColor.color)); on('#fm-fill', () => this.pickColor('fill', this.lastColor.fill));
+    on('#fm-color-dd', () => this.openColorMenu('color')); on('#fm-fill-dd', () => this.openColorMenu('fill'));
     on('#btn-settings', () => this.openSettings());
+    $('#minibar').addEventListener('mousedown', (e) => e.preventDefault());
+    $('#minibar').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.miniAction(b.dataset.a); });
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#minibar')) this.hideMini(); }, true);
     $('#set-save').addEventListener('click', () => this.saveSettings());
-    $('#set-cancel').addEventListener('click', () => $('#settings').close());
+    $('#set-cancel').addEventListener('click', () => this.cancelSettings());
+    $('#settings').addEventListener('cancel', () => { if (this._prev) { Object.assign(settings, this._prev); applyTheme(); this._prev = null; } });
+    $('#set-theme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { this._tmp.theme = b.dataset.v; this.previewTheme(); } });
+    $('#set-sheet').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { this._tmp.darkSheet = b.dataset.v === '1'; this.previewTheme(); } });
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) $('#btn-win').hidden = true;
     on('#btn-win', () => { if (!window.open(location.pathname, '_blank')) this.toast('اسمح بالنوافذ المنبثقة، أو افتح التطبيق مرة ثانية من أيقونته'); });
     on('#btn-open', () => this.openDialog());

@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1e6b41">
 <title>جداول</title>
+<script>try{var s=JSON.parse(localStorage.getItem("jadawel-settings"))||{},d=s.theme==="dark"||(s.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches),r=document.documentElement;r.dataset.theme=d?"dark":"light";r.dataset.sheet=d&&s.darkSheet!==false?"dark":"light"}catch(e){}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="fonts/fonts.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -62,14 +64,17 @@
   <div class="rg"><div class="rg-body">
     <div class="col2">
       <div class="row">
+        <button id="fm-font" class="rb dd" title="نوع الخط"><span>Calibri</span></button>
+        <button id="fm-size" class="rb dd" title="حجم الخط"><span>11</span></button>
+        <button id="fm-szup" class="rb icon txt" title="تكبير الخط">A<sup>▴</sup></button>
+        <button id="fm-szdn" class="rb icon txt" title="تصغير الخط">A<sup>▾</sup></button>
+      </div>
+      <div class="row">
         <button id="fm-b" class="rb icon txt" title="غامق (Ctrl+B)"><b>B</b></button>
         <button id="fm-i" class="rb icon txt" title="مائل (Ctrl+I)"><i>I</i></button>
         <button id="fm-u" class="rb icon txt" title="تسطير (Ctrl+U)"><u>U</u></button>
-      </div>
-      <div class="row">
-        <label class="rb icon txt clr" title="لون الخط"><b>A</b><i id="fm-color-bar" class="bar"></i><input type="color" id="fm-color" value="#c00000"></label>
-        <label class="rb icon clr" title="لون التعبئة"><svg><use href="#i-fill"/></svg><i id="fm-fill-bar" class="bar"></i><input type="color" id="fm-fill" value="#ffe699"></label>
-        <button id="fm-nofill" class="rb icon txt" title="بدون تعبئة">✕</button>
+        <span class="split"><button id="fm-color" class="rb icon txt clr" title="لون الخط"><b>A</b><i id="fm-color-bar" class="bar"></i></button><button id="fm-color-dd" class="rb arr" title="ألوان الخط">▾</button></span>
+        <span class="split"><button id="fm-fill" class="rb icon clr" title="لون التعبئة"><svg><use href="#i-fill"/></svg><i id="fm-fill-bar" class="bar"></i></button><button id="fm-fill-dd" class="rb arr" title="ألوان التعبئة">▾</button></span>
       </div>
     </div>
   </div><div class="rg-label">الخط</div></div>
@@ -87,7 +92,7 @@
 
   <div class="rg"><div class="rg-body">
     <div class="col2">
-      <select id="fm-nf" class="nf" title="تنسيق الأرقام"></select>
+      <button id="fm-nf" class="rb dd nf" title="تنسيق الأرقام"><span>عام</span></button>
       <div class="row">
         <button id="fm-decm" class="rb icon txt ltr" title="تقليل الخانات العشرية">−.0</button>
         <button id="fm-decp" class="rb icon txt ltr" title="زيادة الخانات العشرية">+.0</button>
@@ -111,13 +116,39 @@
 <dialog id="dialog"><h2></h2><div class="body"></div><input type="text" dir="auto"><div class="btns"></div></dialog>
 <dialog id="settings">
   <h2>الإعدادات</h2>
-  <label class="field"><span>لغة الواجهة</span>
-    <select id="set-lang"><option value="ar">العربية</option><option value="en">English</option></select></label>
-  <label class="field"><span>اتجاه الأوراق الجديدة</span>
-    <select id="set-dir"><option value="rtl">من اليمين إلى اليسار</option><option value="ltr">من اليسار إلى اليمين</option></select></label>
-  <p class="note">تتغير اللغة فورًا، وتبقى ملفاتك وتعديلاتك كما هي.</p>
+  <div class="sgroup">
+    <div class="sh">اللغة والاتجاه</div>
+    <label class="field"><span>لغة الواجهة</span>
+      <select id="set-lang"><option value="ar">العربية</option><option value="en">English</option></select></label>
+    <label class="field"><span>اتجاه الأوراق الجديدة</span>
+      <select id="set-dir"><option value="rtl">من اليمين إلى اليسار</option><option value="ltr">من اليسار إلى اليمين</option></select></label>
+  </div>
+  <div class="sgroup">
+    <div class="sh">المظهر</div>
+    <div class="seg" id="set-theme" role="radiogroup">
+      <button type="button" data-v="light">☀ فاتح</button><button type="button" data-v="dark">🌙 داكن</button><button type="button" data-v="system">⚙ حسب الجهاز</button>
+    </div>
+    <div class="field" id="set-sheet-wrap"><span>الوضع الداكن يشمل</span>
+      <div class="seg" id="set-sheet" role="radiogroup"><button type="button" data-v="1">الشيت كله</button><button type="button" data-v="0">القوائم والواجهة فقط</button></div>
+      <small class="note">«القوائم والواجهة فقط» تُبقي ورقة العمل بيضاء كما في الورق، والباقي داكن.</small></div>
+  </div>
+  <div class="sgroup">
+    <div class="sh">التحديد والنسخ</div>
+    <label class="chk"><input type="checkbox" id="set-handles"><span>مقابض التحديد (دوائر الزوايا وشريط التعبئة)</span></label>
+    <label class="chk"><input type="checkbox" id="set-minibar"><span>شريط النسخ واللصق العائم (ضغطة مطولة أو لمسة على التحديد)</span></label>
+    <small class="note">أطفئ الشريط العائم إن كان يزعجك على الهاتف؛ تبقى القائمة بالنقر الأيمن واختصارات لوحة المفاتيح.</small>
+  </div>
+  <p class="note">تتغير الإعدادات فورًا، وتبقى ملفاتك وتعديلاتك كما هي.</p>
   <div class="btns"><button id="set-save" class="primary">حفظ</button><button id="set-cancel">إلغاء</button></div>
 </dialog>
+<div id="minibar" role="toolbar" hidden>
+  <button data-a="cut"><svg><use href="#i-cut"/></svg><span>قص</span></button>
+  <button data-a="copy"><svg><use href="#i-copy"/></svg><span>نسخ</span></button>
+  <button data-a="paste"><svg><use href="#i-paste"/></svg><span>لصق</span></button>
+  <button data-a="clear"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5"/></svg><span>مسح</span></button>
+  <button data-a="fill"><svg><use href="#i-fill"/></svg><span>تعبئة</span></button>
+  <button data-a="edit"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg><span>تحرير</span></button>
+</div>
 <div id="toasts"></div>
 <script src="vendor/exceljs.min.js"></script>
 <script src="vendor/xlsx.full.min.js"></script>

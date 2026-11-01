@@ -19,7 +19,7 @@ const argb = (c) => (c && typeof c.argb === 'string' && c.argb.length >= 6) ? '#
 
 function readStyle(cell) {
   const s = {}; const f = cell.font;
-  if (f) { if (f.bold) s.b = 1; if (f.italic) s.i = 1; if (f.underline) s.u = 1; const col = argb(f.color); if (col && col !== '#000000') s.color = col; }
+  if (f) { if (f.bold) s.b = 1; if (f.italic) s.i = 1; if (f.underline) s.u = 1; const col = argb(f.color); if (col && col !== '#000000') s.color = col; if (f.name && f.name !== 'Calibri') s.font = f.name; if (f.size && f.size !== 11) s.sz = f.size; }
   const fill = cell.fill;
   if (fill && fill.type === 'pattern' && fill.pattern === 'solid') { const col = argb(fill.fgColor); if (col) s.fill = col; }
   const al = cell.alignment;
@@ -89,9 +89,11 @@ const toArgb = (c) => 'FF' + c.replace('#', '').toUpperCase().padStart(6, '0').s
 // يطبّق فقط المفاتيح الموجودة في نمط الخلية، فلا نمسح تنسيقًا لم نفهمه من الملف الأصلي
 function applyStyle(ec, s) {
   if (!s) return;
-  if ('b' in s || 'i' in s || 'u' in s || 'color' in s) {
+  if ('b' in s || 'i' in s || 'u' in s || 'color' in s || 'font' in s || 'sz' in s) {
     const f = Object.assign({}, ec.font);
     if ('b' in s) f.bold = !!s.b; if ('i' in s) f.italic = !!s.i; if ('u' in s) f.underline = !!s.u;
+    if ('font' in s) { if (s.font) f.name = s.font; else delete f.name; }
+    if ('sz' in s) { if (s.sz) f.size = s.sz; else delete f.size; }
     if ('color' in s) { if (s.color) f.color = { argb: toArgb(s.color) }; else delete f.color; }
     ec.font = f;
   }
