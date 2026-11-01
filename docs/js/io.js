@@ -2,6 +2,7 @@
 import { tr } from './i18n.js';
 import { readCharts, injectCharts, stripDrawings } from './charts.js';
 import { readPics, injectPics } from './pics.js';
+import { readZip, txt } from './zip.js';
 const hasDraw = (wb) => wb.sheets.some((s) => (s.charts && s.charts.length) || (s.pics && s.pics.length));
 import { key, unkey, parseDelimited, toCSV, rawText, parseInput, uid, parseRange } from './util.js';
 
@@ -18,7 +19,36 @@ export function fitSize(sh) {
   sh.ncols = Math.max(sh.ncols || 0, 40, mc + 10);
 }
 
-const argb = (c) => (c && typeof c.argb === 'string' && c.argb.length >= 6) ? '#' + c.argb.slice(-6) : null;
+// ألوان الثيم والمفهرسة (Excel يخزّن كثيرًا من الألوان كـ theme + tint لا كـ RGB)
+let THEME = null; // [lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink]
+const INDEXED = '000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 800000 008000 000080 808000 800080 008080 C0C0C0 808080 9999FF 993366 FFFFCC CCFFFF 660066 FF8080 0066CC CCCCFF 000080 FF00FF FFFF00 00FFFF 800080 800000 008080 0000FF 00CCFF CCFFFF CCFFCC FFFF99 99CCFF FF99CC CC99FF FFCC99 3366FF 33CCCC 99CC00 FFCC00 FF9900 FF6600 666699 969696 003366 339966 003300 333300 993300 993366 333399 333333'.split(' ');
+const DEF_THEME = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47', '0563C1', '954F72'];
+function parseTheme(xml) {
+  try {
+    const m = xml.match(/<a:clrScheme[\s\S]*?<\/a:clrScheme>/); if (!m) return null;
+    const out = {}; for (const k of ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink']) { const e = m[0].match(new RegExp(`<a:${k}>([\\s\\S]*?)</a:${k}>`)); const v = e && (e[1].match(/lastClr="([0-9A-Fa-f]{6})"/) || e[1].match(/val="([0-9A-Fa-f]{6})"/)); out[k] = v ? v[1] : null; }
+    const o = [out.lt1, out.dk1, out.lt2, out.dk2, out.accent1, out.accent2, out.accent3, out.accent4, out.accent5, out.accent6, out.hlink, out.folHlink];
+    return o.map((x, i) => x || DEF_THEME[i]);
+  } catch (e) { return null; }
+}
+function tintHex(hex, tint) {
+  if (!tint) return '#' + hex;
+  let r = parseInt(hex.slice(0, 2), 16) / 255, g = parseInt(hex.slice(2, 4), 16) / 255, b = parseInt(hex.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0, l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+  l = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint;
+  const f = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  if (s === 0) r = g = b = l; else { const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q; r = f(p, q, h + 1 / 3); g = f(p, q, h); b = f(p, q, h - 1 / 3); }
+  const x = (v) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
+  return '#' + x(r) + x(g) + x(b);
+}
+const argb = (c) => {
+  if (!c) return null;
+  if (typeof c.argb === 'string' && c.argb.length >= 6) return '#' + c.argb.slice(-6);
+  if (typeof c.theme === 'number') { const t = THEME || DEF_THEME; const hx = t[c.theme]; return hx ? tintHex(hx, c.tint || 0) : null; }
+  if (typeof c.indexed === 'number') { const hx = INDEXED[c.indexed] || (c.indexed === 64 ? '000000' : c.indexed === 65 ? 'FFFFFF' : null); return hx ? '#' + hx : null; }
+  return null;
+};
 
 function readStyle(cell) {
   const s = {}; const f = cell.font;
@@ -29,6 +59,7 @@ function readStyle(cell) {
   if (al && ['left', 'center', 'right'].includes(al.horizontal)) s.al = al.horizontal;
   if (al && al.wrapText) s.wrap = 1;
   if (al && al.shrinkToFit) s.fit = 1;
+  if (al && (al.textRotation === 90 || al.textRotation === 'vertical' || al.textRotation === 255 || (al.textRotation > 90 && al.textRotation <= 180))) s.rot = al.textRotation === 90 ? 90 : (al.textRotation === 'vertical' || al.textRotation === 255) ? 255 : 180;
   if (cell.numFmt && cell.numFmt !== 'General') s.nf = cell.numFmt;
   const bd = cell.border;
   if (bd) { let t = ''; if (bd.top && bd.top.style) t += 't'; if (bd.bottom && bd.bottom.style) t += 'b'; if (bd.left && bd.left.style) t += 'l'; if (bd.right && bd.right.style) t += 'r'; if (t) s.bd = t; }
@@ -55,6 +86,7 @@ function readValue(cell) {
 async function readXlsxExcelJS(buffer, name) {
   const x = new ExcelJS.Workbook();
   await x.xlsx.load(buffer);
+  THEME = null; try { const z = await readZip(buffer); const tx = z.get('xl/theme/theme1.xml'); if (tx) THEME = parseTheme(txt(tx)); } catch (e) { /* الثيم الافتراضي */ }
   const wb = { id: uid(), name, kind: 'xlsx', sheets: [], dirty: false, orig: buffer, handle: null, overwriteOK: false, created: Date.now() };
   x.eachSheet((ws) => {
     const sh = newSheet(ws.name, !!(ws.views && ws.views[0] && ws.views[0].rightToLeft));

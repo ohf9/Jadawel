@@ -108,7 +108,7 @@ export class Pane {
     const hr = sh.hidRows;
     for (const [k, cell] of sh.cells) {
       if (cov.has(k)) continue;
-      const s = cell.s; const txt = displayText(cell); if (!txt) continue;
+      const s = cell.s; const txt = displayText(cell); if (!txt || (s && s.rot)) continue;
       const [r, c] = k.split(',').map(Number); if (hr && hr.has(r)) continue;
       const px = ((s && s.sz) || 11) * 4 / 3, lh = px * 1.3;
       const m = mt.get(k);
@@ -161,6 +161,7 @@ export class Pane {
     const cfi = sh.cf && sh.cf.length ? cfPrep(sh) : null;
     const cover = new Set();
     const fs = (px) => z === 1 ? `${px}px` : `${(px * z).toFixed(2)}px`;
+    const rotSpan = (rot, inner) => `<span class="rt" style="writing-mode:vertical-rl;${rot === 90 ? 'transform:rotate(180deg);' : ''}${rot === 255 ? 'text-orientation:upright;' : ''}">${inner}</span>`;
     const style = (s, cls, num) => {
       let o = '';
       if (s) {
@@ -184,7 +185,7 @@ export class Pane {
       if (s && s.wrap) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
       else if (txt && s && s.fit) { st2 += this.shrink(txt, s, w, z); cls += ' fitchk'; }
       else if (txt && this.measure(txt, s, ((s && s.sz) || 11) * 4 / 3 * z) > w - 10 * z) { st2 += 'white-space:normal;line-height:1.3;'; cls += ' wr'; }
-      html += `<div class="${cls}" style="${st2}"><span>${esc(txt)}</span></div>`;
+      html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" style="${st2}">${s && s.rot ? rotSpan(s.rot, esc(txt)) : `<span>${esc(txt)}</span>`}</div>`;
     }
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
@@ -212,7 +213,8 @@ export class Pane {
         let sEff = s;
         if (!(s && s.wrap) && txt && (w === cx[c + 1] - cx[c])) { if (s && s.fit) { st2 += this.shrink(txt, sEff, w, z); cls += ' fitchk'; } }
         if (fx && fx.css) st2 += fx.css;
-        html += `<div class="${cls}" style="${st2}">${esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt)}</div>`;
+        const inner = esc(this.sh.showF && cell.f != null ? '=' + cell.f : txt);
+        html += `<div class="${cls}${s && s.rot ? ' rot' : ''}" style="${st2}">${s && s.rot ? rotSpan(s.rot, inner) : inner}</div>`;
       }
     }
     const fl = sh.filter;

@@ -510,3 +510,8 @@ input.sw:checked{background:var(--accent);border-color:var(--accent)}input.sw:ch
 .dvbtn{position:absolute;z-index:5;display:none;padding:0;border:1px solid var(--s-hdr-b,#999);background:var(--s-hdr,#f3f3f3);border-radius:2px;cursor:pointer;pointer-events:auto}
 .dvbtn svg{width:100%;height:100%;stroke:var(--s-text,#333);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;padding:5px}
 .dvmenu{max-height:min(60vh,420px);overflow:auto}
+
+/* نص مدوَّر (عمودي) */
+.c.rot{display:flex!important;align-items:center;justify-content:center;white-space:normal;line-height:1.15;padding:2px;text-align:center}
+.c.rot .rt{display:block;max-height:100%;overflow:hidden;text-align:center;width:auto}
+.c.mg.rot span.rt{width:auto}
