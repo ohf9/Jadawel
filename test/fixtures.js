@@ -1,0 +1,22 @@
+const ExcelJS = require('exceljs');
+(async () => {
+  const a = new ExcelJS.Workbook();
+  const s = a.addWorksheet('المبيعات', { views: [{ rightToLeft: true }] });
+  s.columns = [{ width: 22 }, { width: 12 }, { width: 12 }, { width: 14 }];
+  s.addRow(['المنتج', 'الكمية', 'السعر', 'الإجمالي']);
+  s.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  s.getRow(1).eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E6B41' } });
+  const items = [['قهوة عربية', 12, 35.5], ['تمر سكري', 40, 22], ['هيل', 5, 90]];
+  items.forEach((it, i) => { const r = s.addRow(it); r.getCell(4).value = { formula: `B${i + 2}*C${i + 2}`, result: it[1] * it[2] }; r.getCell(3).numFmt = '#,##0.00'; });
+  s.getCell('A6').value = 'المجموع'; s.getCell('A6').font = { bold: true };
+  s.getCell('D6').value = { formula: 'SUM(D2:D4)', result: 12 * 35.5 + 40 * 22 + 5 * 90 };
+  s.getCell('A8').value = new Date(Date.UTC(2026, 9, 15)); s.getCell('A8').numFmt = 'yyyy-mm-dd';
+  const n = a.addWorksheet('ملاحظات'); n.getCell('A1').value = 'ورقة ثانية يجب أن تبقى'; n.getCell('A1').font = { italic: true };
+  await a.xlsx.writeFile('test/out/مبيعات.xlsx');
+  const b = new ExcelJS.Workbook();
+  const t = b.addWorksheet('Inventory');
+  t.addRow(['SKU', 'Item', 'Stock']); t.getRow(1).font = { bold: true };
+  t.addRow(['A-1', 'Cardamom', 100]); t.addRow(['A-2', 'Saffron', 7]); t.addRow(['A-3', 'Dates', 250]);
+  await b.xlsx.writeFile('test/out/مخزون.xlsx');
+  console.log('fixtures ok');
+})();
