@@ -52,7 +52,7 @@ const bytes = fs.readFileSync('test/corpus/exceljs.xlsx').toString('base64');
  await q.evaluate(()=>{const P=app.pane(); P.select(10,0); app.setNumFmt('0.00%');});
  check(await q.evaluate(()=>app.pane().cells.textContent.includes('25.60%')),'تنسيق النسبة المئوية يظهر 25.60%');
  // تغيير حجم عمود بالسحب
- const hc=await q.evaluate(()=>{const P=app.pane(); const rc=P.layer.getBoundingClientRect(); const x=P.sh.rtl?rc.right-P.colX[1]:rc.left+P.colX[1]; const hr=P.colcells.getBoundingClientRect(); return {x, y:hr.top+12, w:P.sh.colW[0]||96};});
+ const hc=await q.evaluate(()=>{const P=app.pane(); const rc=P.layer.getBoundingClientRect(); const x=P.sh.rtl?rc.right-P.colX[1]:rc.left+P.colX[1]; const hr=P.colcells.getBoundingClientRect(); return {x, y:hr.top+12, w:P.sh.colW[0]||64};});
  await q.mouse.move(hc.x,hc.y); await q.mouse.down(); await q.mouse.move(hc.x+(await q.evaluate(()=>app.pane().sh.rtl)?-80:80),hc.y,{steps:5}); await q.mouse.up();
  check(await q.evaluate(()=>app.pane().sh.colW[0])>hc.w+50,'سحب حافة العمود يغيّر عرضه');
  console.log('• الإعدادات واللغة');

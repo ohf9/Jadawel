@@ -4,7 +4,7 @@ import { cfPrep, cfEffect } from './cf.js';
 import { tr, settings } from './i18n.js';
 import { key, a1, colName, rawText, displayText, isNumCell, parseInput, parseRange, esc } from './util.js';
 
-export const HDR_W = 46, HDR_H = 24, DEF_W = 96, DEF_H = 26;
+export const HDR_W = 46, HDR_H = 24, DEF_W = 64, DEF_H = 20;
 
 function bsearch(arr, v) { // أكبر i بحيث arr[i] <= v
   let lo = 0, hi = arr.length - 2;
@@ -112,8 +112,8 @@ export class Pane {
       const [r, c] = k.split(',').map(Number); if (hr && hr.has(r)) continue;
       const px = ((s && s.sz) || 11) * 4 / 3, lh = px * 1.3;
       const m = mt.get(k);
-      let w = sh.colW[c] || DEF_W, base = sh.rowH[r] || DEF_H, rEnd = r;
-      if (m) { w = 0; base = 0; for (let x = m.c1; x <= m.c2; x++) w += sh.colW[x] || DEF_W; for (let y = m.r1; y <= m.r2; y++) base += sh.rowH[y] || DEF_H; rEnd = m.r2; }
+      let w = sh.colW[c] || sh.defW || DEF_W, base = sh.rowH[r] || sh.defH || DEF_H, rEnd = r;
+      if (m) { w = 0; base = 0; for (let x = m.c1; x <= m.c2; x++) w += sh.colW[x] || sh.defW || DEF_W; for (let y = m.r1; y <= m.r2; y++) base += sh.rowH[y] || sh.defH || DEF_H; rEnd = m.r2; }
       let need = lh + 4;
       const avail = Math.max(8, w - 18);
       if (!(s && s.fit) && (s && s.wrap || m) && txt.length * px * 0.3 > avail * 0.8) {
@@ -121,7 +121,7 @@ export class Pane {
         if (n > 1 && (s && s.wrap || this.measure(txt, s, px) > avail)) { need = n * lh + 10; if (m && !(s && s.wrap)) m.autoWrap = true; }
       }
       if (s && s.fit) need = Math.min(need, base);
-      if (need > base + 1) { const last = rEnd; out.set(last, Math.max(out.get(last) || 0, (sh.rowH[last] || DEF_H) + (need - base))); }
+      if (need > base + 1) { const last = rEnd; out.set(last, Math.max(out.get(last) || 0, (sh.rowH[last] || sh.defH || DEF_H) + (need - base))); }
     }
     if (this.domH) for (const [r, v] of this.domH) out.set(r, Math.max(out.get(r) || 0, v));
     return out;
@@ -140,10 +140,10 @@ export class Pane {
     const cx = this.colX = new Float64Array(sh.ncols + 1);
     const z = this.z = sh.zoom || 1, hc = sh.hidCols, hr = sh.hidRows;
     this.layer.style.setProperty('--z', z);
-    for (let c = 0; c < sh.ncols; c++) cx[c + 1] = cx[c] + (hc && hc.has(c) ? 0 : (sh.colW[c] || DEF_W) * z);
+    for (let c = 0; c < sh.ncols; c++) cx[c + 1] = cx[c] + (hc && hc.has(c) ? 0 : (sh.colW[c] || sh.defW || DEF_W) * z);
     const ry = this.rowY = new Float64Array(sh.nrows + 1);
     const au = this.autoH || (this.autoH = this.calcAuto());
-    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (hr && hr.has(r) ? 0 : Math.max(sh.rowH[r] || DEF_H, au.get(r) || 0) * z);
+    for (let r = 0; r < sh.nrows; r++) ry[r + 1] = ry[r] + (hr && hr.has(r) ? 0 : Math.max(sh.rowH[r] || sh.defH || DEF_H, au.get(r) || 0) * z);
     const W = cx[sh.ncols], H = ry[sh.nrows];
     this.canvas.style.width = (W + HDR_W) + 'px'; this.canvas.style.height = (H + HDR_H) + 'px';
     this.layer.style.width = W + 'px'; this.layer.style.height = H + 'px';
@@ -289,7 +289,7 @@ export class Pane {
     const z = this.z || 1; let grew = false; this.domH = this.domH || new Map();
     for (const el of root.querySelectorAll('.wr[data-rl]')) {
       const rg = document.createRange(); rg.selectNodeContents(el); const ex = rg.getBoundingClientRect().height - el.clientHeight + 4; if (ex <= 1) continue; // قياس حقيقي (scrollHeight لا يحسب الفائض للأعلى)
-      const r = +el.dataset.rl, cur = Math.max(this.sh.rowH[r] || DEF_H, (this.autoH && this.autoH.get(r)) || 0, this.domH.get(r) || 0), nv = cur + ex / z + 2;
+      const r = +el.dataset.rl, cur = Math.max(this.sh.rowH[r] || sh.defH || DEF_H, (this.autoH && this.autoH.get(r)) || 0, this.domH.get(r) || 0), nv = cur + ex / z + 2;
       if (nv > cur + 0.5) { this.domH.set(r, nv); grew = true; }
     }
     if (grew && !this._rg) { this._rg = true; requestAnimationFrame(() => { this._rg = false; this.autoH = null; this.axes(); this.block = null; this.render(true); this.updateSel(); }); }
@@ -727,7 +727,7 @@ export class Pane {
     const inSel = col ? (idx >= g.c1 && idx <= g.c2 && g.r1 === 0 && g.r2 >= sh.nrows - 1) : (idx >= g.r1 && idx <= g.r2 && g.c1 === 0 && g.c2 >= sh.ncols - 1);
     const list = []; const a = inSel ? (col ? g.c1 : g.r1) : idx, b = inSel ? (col ? g.c2 : g.r2) : idx;
     for (let i = a; i <= b; i++) list.push(i);
-    const map = col ? sh.colW : sh.rowH, def = col ? DEF_W : DEF_H;
+    const map = col ? sh.colW : sh.rowH, def = col ? (sh.defW || DEF_W) : (sh.defH || DEF_H);
     const zz = this.z || 1, start = (map[idx] || def) * zz, x0 = col ? e.clientX : e.clientY;
     const tgt = e.currentTarget; tgt.setPointerCapture(e.pointerId);
     const move = (ev) => {
@@ -750,7 +750,7 @@ export class Pane {
     const cv = this._cv || (this._cv = document.createElement('canvas').getContext('2d'));
     cv.font = '14px "Segoe UI", Tahoma, sans-serif';
     for (const i of list) {
-      if (!col) { sh.rowH[i] = DEF_H; continue; }
+      if (!col) { sh.rowH[i] = sh.defH || DEF_H; continue; }
       let w = 0;
       for (const [k, cell] of sh.cells) { const [r, c] = k.split(',').map(Number); if (c !== i) continue; const t = displayText(cell); if (t) { cv.font = `${cell.s && cell.s.i ? 'italic ' : ''}${cell.s && cell.s.b ? 'bold ' : ''}14px "Segoe UI", Tahoma, sans-serif`; w = Math.max(w, cv.measureText(t).width); } }
       sh.colW[i] = Math.max(40, Math.min(600, Math.ceil(w) + 16));

@@ -9,7 +9,7 @@ export const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relat
 export const NS_X = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
 const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47', '#264478', '#9E480E'];
 export const EMU = 9525;
-export const DEF_W = 96, DEF_H = 26;
+export const DEF_W = 64, DEF_H = 20;
 export const CHART_TYPES = [['col', 'عمودي'], ['bar', 'أشرطة'], ['line', 'خطي'], ['area', 'مساحة'], ['pie', 'دائري'], ['scatter', 'مبعثر']];
 
 let _id = 0;
@@ -118,7 +118,7 @@ export async function readCharts(buffer, wb) {
     const dp = relsOf(zip, rel.target).get(m[1]); if (!dp || !zip.has(dp.target)) continue;
     const drels = relsOf(zip, dp.target);
     const dd = dom(txt(zip.get(dp.target)));
-    const colPx = (c) => (sh.colW[c] || DEF_W), rowPx = (r) => (sh.rowH[r] || DEF_H);
+    const colPx = (c) => (sh.colW[c] || sh.defW || DEF_W), rowPx = (r) => (sh.rowH[r] || sh.defH || DEF_H);
     const pt = (el) => { // from/to -> {c,r} كسرية
       const g = (n) => +((kid(el, n) || {}).textContent || 0);
       return { c: g('col') + g('colOff') / EMU / colPx(g('col')), r: g('row') + g('rowOff') / EMU / rowPx(g('row')) };
@@ -369,7 +369,7 @@ export async function injectCharts(buffer, wb) {
       zip.set(cpath, bytes(xml));
       ctAdd += `<Override PartName="/${cpath}" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`;
       const rId = 'rIdJc' + chN; addRel(drPath, rId, 'chart', '../charts/chart' + chN + '.xml');
-      const cp = (c, r) => { const ci = Math.floor(c), ri = Math.floor(r); return `<xdr:col>${ci}</xdr:col><xdr:colOff>${Math.round((c - ci) * (sh.colW[ci] || DEF_W) * EMU)}</xdr:colOff><xdr:row>${ri}</xdr:row><xdr:rowOff>${Math.round((r - ri) * (sh.rowH[ri] || DEF_H) * EMU)}</xdr:rowOff>`; };
+      const cp = (c, r) => { const ci = Math.floor(c), ri = Math.floor(r); return `<xdr:col>${ci}</xdr:col><xdr:colOff>${Math.round((c - ci) * (sh.colW[ci] || sh.defW || DEF_W) * EMU)}</xdr:colOff><xdr:row>${ri}</xdr:row><xdr:rowOff>${Math.round((r - ri) * (sh.rowH[ri] || sh.defH || DEF_H) * EMU)}</xdr:rowOff>`; };
       const an = ch.anchor;
       anchors += `<xdr:twoCellAnchor><xdr:from>${cp(an.c1, an.r1)}</xdr:from><xdr:to>${cp(an.c2, an.r2)}</xdr:to><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${oid++}" name="Chart ${chN}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" xmlns:r="${NS_R}" r:id="${rId}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`;
     }

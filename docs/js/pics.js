@@ -37,7 +37,7 @@ export async function readPics(buffer, wb) {
     const m = sx.match(/<drawing\b[^>]*\br:id="([^"]+)"/); if (!m) continue;
     const dp = relsOf(zip, rel.target).get(m[1]); if (!dp || !zip.has(dp.target)) continue;
     const drels = relsOf(zip, dp.target); const dd = dom(txt(zip.get(dp.target)));
-    const colPx = (c) => (sh.colW[c] || DEF_W), rowPx = (r) => (sh.rowH[r] || DEF_H);
+    const colPx = (c) => (sh.colW[c] || sh.defW || DEF_W), rowPx = (r) => (sh.rowH[r] || sh.defH || DEF_H);
     const pt = (el) => { const g = (n) => +((kid(el, n) || {}).textContent || 0); return { c: g('col') + g('colOff') / EMU / colPx(g('col')), r: g('row') + g('rowOff') / EMU / rowPx(g('row')) }; };
     for (const an of [...dd.documentElement.children]) {
       if (kid(an, 'graphicFrame')) continue; // الرسوم البيانية يقرؤها charts.js
@@ -103,7 +103,7 @@ export async function injectPics(buffer, wb) {
         addRel(rel.target, 'rIdJd2', 'drawing', '../drawings/' + drPath.split('/').pop());
       }
       const ms = (drXml.match(/\bid="(\d+)"/g) || []).map((x) => +x.slice(4, -1)); let oid = Math.max(2000, ...ms) + 1;
-      const cp = (c, r) => { const ci = Math.floor(c), ri = Math.floor(r); return `<xdr:col>${ci}</xdr:col><xdr:colOff>${Math.round((c - ci) * (sh.colW[ci] || DEF_W) * EMU)}</xdr:colOff><xdr:row>${ri}</xdr:row><xdr:rowOff>${Math.round((r - ri) * (sh.rowH[ri] || DEF_H) * EMU)}</xdr:rowOff>`; };
+      const cp = (c, r) => { const ci = Math.floor(c), ri = Math.floor(r); return `<xdr:col>${ci}</xdr:col><xdr:colOff>${Math.round((c - ci) * (sh.colW[ci] || sh.defW || DEF_W) * EMU)}</xdr:colOff><xdr:row>${ri}</xdr:row><xdr:rowOff>${Math.round((r - ri) * (sh.rowH[ri] || sh.defH || DEF_H) * EMU)}</xdr:rowOff>`; };
       let anchors = '';
       for (const pc of pics) {
         const wrote = {};

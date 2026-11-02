@@ -40,7 +40,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   // دمج
   await set(8, 0, 'عنوان طويل'); await p.evaluate(() => app.pane().select(8, 0, 8, 2)); await p.evaluate(() => app.mergeCells('center'));
   check(await p.evaluate(() => app.pane().sh.merges.length) === 1, 'دمج خلايا');
-  const mw = await p.evaluate(() => { const d = [...document.querySelectorAll('.pane.active .c.mg')][0]; return d && d.getBoundingClientRect().width; }); check(mw > 250, 'الخلية المدمجة تمتد على 3 أعمدة ' + mw);
+  const mw = await p.evaluate(() => { const d = [...document.querySelectorAll('.pane.active .c.mg')][0]; return d && d.getBoundingClientRect().width; }); check(mw > 180, 'الخلية المدمجة تمتد على 3 أعمدة ' + mw);
   await p.evaluate(() => app.pane().select(8, 1)); check(await p.evaluate(() => { const g = app.pane().range(); return g.c1 === 0 && g.c2 === 2; }), 'النقر داخل المدمجة يحدد كاملها');
   await p.evaluate(() => app.unmergeCells()); check(await p.evaluate(() => app.pane().sh.merges.length) === 0, 'فصل الخلايا');
   await p.evaluate(() => app.undoRedo(false)); check(await p.evaluate(() => app.pane().sh.merges.length) === 1, 'تراجع عن الفصل');

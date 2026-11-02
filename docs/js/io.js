@@ -97,6 +97,7 @@ async function readXlsxExcelJS(buffer, name) {
     { const af = ws.autoFilter; let r1 = -1, c1 = 0, r2 = 0, c2 = 0; if (af) { if (typeof af === 'string') { const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(af); if (m) { const cn = (t) => { let n = 0; for (const ch of t) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; }; c1 = cn(m[1]); r1 = +m[2] - 1; c2 = cn(m[3]); r2 = +m[4] - 1; } } else if (af.from && af.to) { r1 = af.from.row - 1; c1 = af.from.column - 1; r2 = af.to.row - 1; c2 = af.to.column - 1; } }
       if (r1 >= 0 && r2 >= r1) { sh.filter = { r1, c1, r2, c2, hide: {} }; sh._af0 = [r1, c1, r2, c2].join(','); } }
     { const dvm = ws.dataValidations && ws.dataValidations.model; if (dvm) { const d = {}; let n = 0; for (const [a, v] of Object.entries(dvm)) { if (!v || v.type !== 'list' || !v.formulae || !v.formulae[0] || n > 20000) continue; const m = /^([A-Z]+)(\d+)$/.exec(a); if (!m) continue; let c = 0; for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64; d[(+m[2] - 1) + ',' + (c - 1)] = String(v.formulae[0]); n++; } if (n) sh.dv = d; } }
+    { const pr = ws.properties || {}; if (pr.defaultColWidth) sh.defW = Math.round(pr.defaultColWidth * 7 + 5); if (pr.defaultRowHeight) sh.defH = Math.round(pr.defaultRowHeight * 4 / 3); }
     sh.origId = ws.id; sh.tabColor = argb(ws.properties && ws.properties.tabColor);
     ws.eachRow({ includeEmpty: false }, (row, rn) => {
       if (row.height) sh.rowH[rn - 1] = Math.round(row.height * 4 / 3);

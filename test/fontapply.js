@@ -4,7 +4,7 @@ const { chromium } = require('playwright'); let fails = 0; const check = (c, m) 
   await p.goto(process.env.URL || 'http://localhost:8765/'); await p.evaluate(() => { localStorage.clear(); indexedDB.deleteDatabase('jadawel'); }); await p.reload(); await p.waitForTimeout(500);
   await p.click('.pane[data-pane="0"] .e-new'); await p.waitForFunction(() => app.pane().sh);
   await p.evaluate(() => { const P = app.pane(); P.sh.cells.set('2,1', { f: 'SUM(A1:A2)', v: 'لا يوجد نتائج' }); P.sh.cells.set('0,0', { v: 'نص' }); P.render(true); });
-  const fs = (r, c) => p.evaluate(([r, c]) => { const P = app.pane(); const el = [...P.cells.children].find((e) => e.style.top === P.rowY[r] + 'px' && e.style.insetInlineStart === P.colX[c] + 'px'); const cs = el && getComputedStyle(el); return el && { size: cs.fontSize, fam: cs.fontFamily.slice(0, 30), h: el.style.height }; }, [r, c]);
+  const fs = (r, c) => p.evaluate(([r, c]) => { const P = app.pane(); const el = [...P.el.querySelectorAll(".cells > *")].find((e) => Math.abs(parseFloat(e.style.top) - P.rowY[r]) < 0.1 && Math.abs(parseFloat(e.style.insetInlineStart) - P.colX[c]) < 0.1); const cs = el && getComputedStyle(el); return el && { size: cs.fontSize, fam: cs.fontFamily.slice(0, 30), h: el.style.height }; }, [r, c]);
   const before = await fs(0, 0);
   await p.evaluate(() => { app.pane().select(0, 0); app.setStyle('font', 'Cairo'); }); const f1 = await fs(0, 0);
   check(f1.size === before.size, 'تبديل الخط وحده لا يغير الحجم ' + before.size + '/' + f1.size);
