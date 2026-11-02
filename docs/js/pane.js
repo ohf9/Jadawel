@@ -110,15 +110,15 @@ export class Pane {
       if (cov.has(k)) continue;
       const s = cell.s; const txt = displayText(cell); if (!txt || (s && s.rot)) continue;
       const [r, c] = k.split(',').map(Number); if (hr && hr.has(r)) continue;
-      const px = ((s && s.sz) || 11) * 4 / 3, lh = px * 1.3;
+      const px = ((s && s.sz) || 11) * 4 / 3, lh = px * 1.25;
       const m = mt.get(k);
       let w = sh.colW[c] || sh.defW || DEF_W, base = sh.rowH[r] || sh.defH || DEF_H, rEnd = r;
       if (m) { w = 0; base = 0; for (let x = m.c1; x <= m.c2; x++) w += sh.colW[x] || sh.defW || DEF_W; for (let y = m.r1; y <= m.r2; y++) base += sh.rowH[y] || sh.defH || DEF_H; rEnd = m.r2; }
-      let need = lh + 4;
+      let need = lh + 2;
       const avail = Math.max(8, w - 18);
       if (!(s && s.fit) && (s && s.wrap || m) && txt.length * px * 0.3 > avail * 0.8) {
         let n = 0; for (const para of String(txt).split('\n')) { let cur = 0, l = 1; for (const word of para.split(/\s+/)) { const ww = this.measure(word, s, px), sp = this.measure(' ', s, px); if (cur && cur + sp + ww > avail) { l++; cur = ww; } else cur += (cur ? sp : 0) + ww; if (ww > avail) l += Math.floor(ww / avail); } n += l; }
-        if (n > 1 && (s && s.wrap || this.measure(txt, s, px) > avail)) { need = n * lh + 10; if (m && !(s && s.wrap)) m.autoWrap = true; }
+        if (n > 1 && (s && s.wrap || this.measure(txt, s, px) > avail)) { need = n * lh + 4; if (m && !(s && s.wrap)) m.autoWrap = true; }
       }
       if (s && s.fit) need = Math.min(need, base);
       if (need > base + 1) { const last = rEnd; out.set(last, Math.max(out.get(last) || 0, (sh.rowH[last] || sh.defH || DEF_H) + (need - base))); }
@@ -129,6 +129,7 @@ export class Pane {
   // يعيد حساب الارتفاع التلقائي بعد تغيير المحتوى أو التنسيق
   reflow() {
     if (!this.sh) return false;
+    this.domH = null; // القياس الفعلي يُعاد من الصفر بعد كل تعديل (إلغاء الالتفاف يرجع الصف)
     const nu = this.calcAuto(), old = this.autoH || new Map(); let same = nu.size === old.size;
     if (same) for (const [k, v] of nu) if (Math.abs((old.get(k) || 0) - v) > 0.5) { same = false; break; }
     if (same) return false;
@@ -288,8 +289,8 @@ export class Pane {
     // نص ملتفّ ما زال أطول من خليته (قياس المتصفح الحقيقي): نكبّر الصف بدل أن يُقطع
     const z = this.z || 1; let grew = false; this.domH = this.domH || new Map();
     for (const el of root.querySelectorAll('.wr[data-rl]')) {
-      const rg = document.createRange(); rg.selectNodeContents(el); const ex = rg.getBoundingClientRect().height - el.clientHeight + 4; if (ex <= 1) continue; // قياس حقيقي (scrollHeight لا يحسب الفائض للأعلى)
-      const r = +el.dataset.rl, cur = Math.max(this.sh.rowH[r] || sh.defH || DEF_H, (this.autoH && this.autoH.get(r)) || 0, this.domH.get(r) || 0), nv = cur + ex / z + 2;
+      const rg = document.createRange(); rg.selectNodeContents(el); const ex = rg.getBoundingClientRect().height + 6 - el.clientHeight; if (ex <= 1) continue; // قياس حقيقي (scrollHeight لا يحسب الفائض للأعلى)
+      const r = +el.dataset.rl, cur = Math.max(this.sh.rowH[r] || sh.defH || DEF_H, (this.autoH && this.autoH.get(r)) || 0, this.domH.get(r) || 0), nv = cur + ex / z;
       if (nv > cur + 0.5) { this.domH.set(r, nv); grew = true; }
     }
     if (grew && !this._rg) { this._rg = true; requestAnimationFrame(() => { this._rg = false; this.autoH = null; this.axes(); this.block = null; this.render(true); this.updateSel(); }); }

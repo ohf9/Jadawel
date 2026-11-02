@@ -347,7 +347,6 @@ const app = window.app = {
     const p = this.pane(); if (!p.sh) return; const g = p.range(); let all = true;
     for (let r = g.r1; r <= g.r2 && all; r++) for (let c = g.c1; c <= g.c2; c++) { const cell = p.sh.cells.get(key(r, c)); if (!(cell && cell.s && cell.s[k])) { all = false; break; } }
     this.formatSel(p, (st) => { if (all) { if (k === 'fit') st[k] = 0; else delete st[k]; } else st[k] = 1; });
-    if (k === 'wrap' && !all) this.fitWrapRows(p, g);
   },
   // التفاف النص يكبّر الصف تلقائيًا ليظهر كل النص (كما في Excel)
   fitWrapRows(p, g) {
