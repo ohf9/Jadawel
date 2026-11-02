@@ -33,7 +33,7 @@ jobs:
       - run: npx cap sync ios
       - name: Build (no signing)
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
             TARGETED_DEVICE_FAMILY="1,2" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir Payload && cp -r build/Build/Products/Release-iphoneos/App.app Payload/
