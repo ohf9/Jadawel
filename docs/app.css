@@ -527,3 +527,16 @@ input.sw:checked{background:var(--accent);border-color:var(--accent)}input.sw:ch
 .menu-filter .flist{border:1px solid var(--line);border-radius:8px;margin:4px;max-height:200px}
 .menu-filter .fl small{display:none}
 .menu-filter .flist{max-height:min(150px,22vh)!important}
+
+/* إخفاء الشريط */
+.rib-sp{flex:1}
+.rib-ctl{border:0;background:transparent;color:rgba(255,255,255,.9);width:40px;min-height:40px;border-radius:8px;display:grid;place-items:center;flex:none}
+.rib-ctl:hover{background:rgba(255,255,255,.16)}
+.rib-ctl svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.rtabs{align-items:stretch}
+[data-rib=tabs] .ribbon{display:none}
+[data-rib=tabs] .ribbon.peek{display:flex;position:fixed;inset-inline:0;z-index:40;box-shadow:0 8px 18px rgba(0,0,0,.28)}
+[data-rib=none] .rtabs,[data-rib=none] .ribbon{display:none}
+.rib-restore{display:none;position:fixed;top:6px;inset-inline-start:calc(50% - 20px);z-index:60;width:40px;height:26px;min-height:0;border:0;border-radius:0 0 12px 12px;background:var(--title);color:#fff;opacity:.85;box-shadow:0 2px 8px rgba(0,0,0,.3);place-items:center;padding:0}
+.rib-restore svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+[data-rib=none] .rib-restore{display:grid}
