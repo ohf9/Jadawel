@@ -179,10 +179,10 @@ const app = window.app = {
   },
   copy(cut, evt) {
     const p = this.pane(); if (!p.sh) return;
-    const d = this.grabRange(p); const tsv = toTSV(d.grid);
-    this.clip = { ...d, tsv, cut, wbId: p.wb.id, sheetId: p.sh.id };
-    if (evt) { evt.clipboardData.setData('text/plain', tsv); evt.preventDefault(); }
-    else if (navigator.clipboard) navigator.clipboard.writeText(tsv).catch(() => {});
+    const d = this.grabRange(p); const tsv = toTSV(d.grid), ext = toTSV(d.grid, true); // للخارج: القيم كما تظهر (مثل Excel)، وداخل التطبيق تبقى الصيغ
+    this.clip = { ...d, tsv, ext, cut, wbId: p.wb.id, sheetId: p.sh.id };
+    if (evt) { evt.clipboardData.setData('text/plain', ext); evt.preventDefault(); }
+    else if (navigator.clipboard) navigator.clipboard.writeText(ext).catch(() => {});
     this.panes.forEach((q) => q.wb && q.showMarquee());
     this.toast(`${cut ? 'قص' : 'نسخ'} ${d.grid.length}×${d.grid[0].length} — الصق في أي ملف مفتوح`);
   },
@@ -195,7 +195,7 @@ const app = window.app = {
     const p = this.pane(); if (!p.sh) return;
     const cl = this.clip;
     let block;
-    if (cl && (text == null || text.replace(/\r/g, '') === cl.tsv)) block = { grid: cl.grid, src: cl };
+    if (cl && (text == null || [cl.tsv, cl.ext].includes(text.replace(/\r/g, '')))) block = { grid: cl.grid, src: cl };
     else if (text != null && text !== '') block = { grid: parseDelimited(text.replace(/\r?\n$/, ''), '\t').map((row) => row.map((t) => parseInput(t))) };
     else return this.toast('الحافظة فارغة');
     const g = p.range();

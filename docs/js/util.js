@@ -180,9 +180,9 @@ export function shiftFormula(f, dr, dc) {
 }
 
 // نص مفصول بعلامات Tab (للحافظة)
-export function toTSV(grid) {
+export function toTSV(grid, shown) {
   return grid.map((row) => row.map((cell) => {
-    const s = rawText(cell);
+    const s = shown ? (cell ? displayText(cell) : '') : rawText(cell);
     return /[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }).join('\t')).join('\n');
 }
