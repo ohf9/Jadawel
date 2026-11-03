@@ -1,6 +1,7 @@
 // جسر Android: فتح الملفات من مدير الملفات والحفظ داخل نفس الملف (يتصرف مثل File System Access في المتصفح)
 const cap = window.Capacitor;
-export const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+// Android فقط (على iOS ما فيه JadawelNative، فيستخدم مسارات المتصفح)
+export const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform() && (!cap.getPlatform || cap.getPlatform() === 'android'));
 const N = () => cap.Plugins.JadawelNative;
 
 export function b64ToBytes(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }

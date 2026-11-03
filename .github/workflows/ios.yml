@@ -1,0 +1,45 @@
+name: Build iOS (unsigned IPA)
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['docs/**', 'capacitor.config.json', 'package.json', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund && npm install --no-save @capacitor/ios@6.1.2
+      - run: npx cap add ios
+      - name: iPad customisation (all orientations, Split View, open xlsx/csv from Files)
+        run: |
+          P=ios/App/App/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$P" || true; }
+          pb "Add :UIFileSharingEnabled bool true"
+          pb "Add :LSSupportsOpeningDocumentsInPlace bool true"
+          pb "Delete :UIRequiresFullScreen"
+          pb "Add :UIRequiresFullScreen bool false"
+          pb "Add :CFBundleDocumentTypes array"
+          pb "Add :CFBundleDocumentTypes:0 dict"
+          pb "Add :CFBundleDocumentTypes:0:CFBundleTypeName string Spreadsheet"
+          pb "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate"
+          pb "Add :CFBundleDocumentTypes:0:LSItemContentTypes array"
+          i=0; for t in org.openxmlformats.spreadsheetml.sheet com.microsoft.excel.xls public.comma-separated-values-text public.tab-separated-values-text org.oasis-open.opendocument.spreadsheet; do
+            pb "Add :CFBundleDocumentTypes:0:LSItemContentTypes:$i string $t"; i=$((i+1)); done
+      - run: npx cap sync ios
+      - name: Build (no signing)
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            TARGETED_DEVICE_FAMILY="1,2" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload && cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry jadawel-unsigned.ipa Payload
+      - name: Publish release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release delete ios-latest --yes --cleanup-tag || true
+          gh release create ios-latest jadawel-unsigned.ipa --title "جداول (iPad, unsigned)" --notes "IPA غير موقّع: يحتاج توقيع (Sideloadly/AltStore بحساب Apple أو حساب مطور) قبل التثبيت" --latest=false
